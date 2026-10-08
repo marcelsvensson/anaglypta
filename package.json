@@ -1,0 +1,23 @@
+{
+  "name": "anaglypta",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev-11ty": "npx @11ty/eleventy --serve",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "daily-spotify": "node ./scripts/generate.js && python3 ./scripts/bitmapper.py -p spotify && npx @11ty/eleventy && node ./scripts/upload.js",
+    "upload": "node ./scripts/upload.js"
+  },
+  "keywords": ["spotify", "background"],
+  "author": "coulrophobiac",
+  "license": "ISC",
+  "description": "generate a background grid from your spotify-playlist",
+  "dependencies": {
+    "@11ty/eleventy": "^3.1.2",
+    "axios": "^1.11.0",
+    "dotenv": "^17.2.2",
+    "qs": "^6.14.0",
+    "ssh2-sftp-client": "^12.0.1"
+  }
+}

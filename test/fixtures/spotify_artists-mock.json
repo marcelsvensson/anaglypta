@@ -1,0 +1,77 @@
+{
+  "artists": [
+    {
+      "external_urls": {
+        "spotify": "https://open.spotify.com/artist/3Ayl7mCk0nScecqOzvNp6s"
+      },
+      "followers": {
+        "href": null,
+        "total": 1771352
+      },
+      "genres": [
+        "emo",
+        "pop-punk"
+      ],
+      "href": "https://api.spotify.com/v1/artists/3Ayl7mCk0nScecqOzvNp6s?locale=sv-SE%2Csv%3Bq%3D0.9%2Cen-US%3Bq%3D0.8%2Cen%3Bq%3D0.7",
+      "id": "3Ayl7mCk0nScecqOzvNp6s",
+      "images": [
+        {
+          "url": "https://i.scdn.co/image/ab6761610000e5eb0dc33cfd207772f8e2f6b46f",
+          "height": 640,
+          "width": 640
+        },
+        {
+          "url": "https://i.scdn.co/image/ab676161000051740dc33cfd207772f8e2f6b46f",
+          "height": 320,
+          "width": 320
+        },
+        {
+          "url": "https://i.scdn.co/image/ab6761610000f1780dc33cfd207772f8e2f6b46f",
+          "height": 160,
+          "width": 160
+        }
+      ],
+      "name": "Jimmy Eat World",
+      "popularity": 70,
+      "type": "artist",
+      "uri": "spotify:artist:3Ayl7mCk0nScecqOzvNp6s"
+    },
+    {
+      "external_urls": {
+        "spotify": "https://open.spotify.com/artist/0d5ZwMtCer8dQdOPAgWhe7"
+      },
+      "followers": {
+        "href": null,
+        "total": 328361
+      },
+      "genres": [
+        "shoegaze",
+        "postrock",
+        "svart metal"
+      ],
+      "href": "https://api.spotify.com/v1/artists/0d5ZwMtCer8dQdOPAgWhe7?locale=sv-SE%2Csv%3Bq%3D0.9%2Cen-US%3Bq%3D0.8%2Cen%3Bq%3D0.7",
+      "id": "0d5ZwMtCer8dQdOPAgWhe7",
+      "images": [
+        {
+          "url": "https://i.scdn.co/image/ab6761610000e5ebf93fcb88bd2805b3cbb4490f",
+          "height": 640,
+          "width": 640
+        },
+        {
+          "url": "https://i.scdn.co/image/ab67616100005174f93fcb88bd2805b3cbb4490f",
+          "height": 320,
+          "width": 320
+        },
+        {
+          "url": "https://i.scdn.co/image/ab6761610000f178f93fcb88bd2805b3cbb4490f",
+          "height": 160,
+          "width": 160
+        }
+      ],
+      "name": "Alcest",
+      "popularity": 48,
+      "type": "artist",
+      "uri": "spotify:artist:0d5ZwMtCer8dQdOPAgWhe7"
+    }
+  ]
+}

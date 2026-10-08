@@ -1,0 +1,23 @@
+# secrets
+.env
+.env.*
+!.example.env
+.spotify-token*.json
+
+# runtime state (written by scripts/generate.js)
+state.json
+
+# dependencies
+node_modules/
+.venv/
+__pycache__/
+
+# generated output
+_site/
+tmp/*
+!tmp/.gitkeep
+album/*
+!album/album.json
+
+# os/editor
+.DS_Store

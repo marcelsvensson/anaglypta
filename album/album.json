@@ -1,0 +1,5 @@
+{
+    "layout": "day.html",
+    "tags": "album",
+    "eleventyExcludeFromCollections": ["post"]
+}
