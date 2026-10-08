@@ -28,7 +28,7 @@ def main():
 
     albums = read_albums(project)
     if not albums:
-        sys.exit(f"No albums found in {project}/ - run `node scripts/generate.js` first")
+        sys.exit(f"No albums found in {project}/ - run `npm run fetch` first")
 
     shown = albums[-(col * row):]
     if len(albums) > len(shown):

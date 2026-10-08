@@ -1,14 +1,22 @@
 {
   "name": "anaglypta",
   "version": "1.0.0",
-  "main": "index.js",
+  "private": true,
   "type": "commonjs",
   "scripts": {
+    "setup:python": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
     "auth": "node ./scripts/auth.js",
-    "dev-11ty": "npx @11ty/eleventy --serve",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "daily-spotify": "node ./scripts/generate.js && python3 ./scripts/bitmapper.py -p spotify && npx @11ty/eleventy && node ./scripts/upload.js",
-    "upload": "node ./scripts/upload.js"
+    "fetch": "node ./scripts/generate.js",
+    "bitmap": "node ./scripts/python.js ./scripts/bitmapper.py",
+    "collage": "node ./scripts/python.js ./scripts/bitmapper_collage.py --randomize",
+    "full": "npm run fetch && npm run bitmap && node ./scripts/python.js ./scripts/bitmapper_collage.py",
+    "daily": "npm run fetch && npm run bitmap && npm run build && npm run upload",
+    "build": "eleventy",
+    "dev": "eleventy --serve",
+    "upload": "node ./scripts/upload.js",
+    "clean": "node ./scripts/clean.js",
+    "reset": "node ./scripts/clean.js --reset",
+    "test": "echo \"No tests yet\" && exit 0"
   },
   "keywords": [
     "spotify",
@@ -17,9 +25,17 @@
   "author": "marcelsvensson",
   "license": "ISC",
   "description": "generate a background grid from your spotify-playlist",
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
-    "@11ty/eleventy": "^3.1.2",
-    "dotenv": "^17.2.2",
-    "ssh2-sftp-client": "^12.0.1"
+    "@11ty/eleventy": "^3.1.6",
+    "dotenv": "^18.0.6",
+    "ssh2-sftp-client": "^12.1.1"
+  },
+  "allowScripts": {
+    "ssh2": false,
+    "cpu-features": false,
+    "fsevents": false
   }
 }
