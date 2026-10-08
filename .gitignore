@@ -19,5 +19,8 @@ tmp/*
 album/*
 !album/album.json
 
+# logs (e.g. from a cron job)
+*.log
+
 # os/editor
 .DS_Store

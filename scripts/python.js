@@ -9,32 +9,37 @@ const VENV_PYTHON = process.platform === "win32"
     ? path.join(ROOT, ".venv", "Scripts", "python.exe")
     : path.join(ROOT, ".venv", "bin", "python");
 
+const hasPillow = (python) => spawnSync(python, ["-c", "import PIL"], { stdio: "ignore" }).status === 0;
+
 const findPython = () => {
     if (fs.existsSync(VENV_PYTHON)) {
         return VENV_PYTHON;
     }
-    for (const candidate of ["python3", "python"]) {
-        if (spawnSync(candidate, ["-c", "import PIL"], { stdio: "ignore" }).status === 0) {
-            return candidate;
-        }
-    }
-    return null;
+    return ["python3", "python"].find(hasPillow) ?? null;
 };
 
-const [script, ...args] = process.argv.slice(2);
-if (!script) {
-    console.error("usage: node scripts/python.js <script.py> [args...]");
-    process.exit(1);
+const main = () => {
+    const [script, ...args] = process.argv.slice(2);
+    if (!script) {
+        console.error("usage: node scripts/python.js <script.py> [args...]");
+        process.exit(1);
+    }
+
+    const python = findPython();
+    if (!python) {
+        console.error("❌ Python packages missing - run `npm run setup:python` (needs Python 3)");
+        process.exit(1);
+    }
+
+    const result = spawnSync(python, [script, ...args], { stdio: "inherit" });
+    if (result.error) {
+        console.error(`❌ Could not start ${python}: ${result.error.message}`);
+    }
+    process.exitCode = result.status ?? 1;
+};
+
+if (require.main === module) {
+    main();
 }
 
-const python = findPython();
-if (!python) {
-    console.error("❌ Python packages missing - run `npm run setup:python` (needs Python 3)");
-    process.exit(1);
-}
-
-const result = spawnSync(python, [script, ...args], { stdio: "inherit" });
-if (result.error) {
-    console.error(`❌ Could not start ${python}: ${result.error.message}`);
-}
-process.exitCode = result.status ?? 1;
+module.exports = { VENV_PYTHON, hasPillow };

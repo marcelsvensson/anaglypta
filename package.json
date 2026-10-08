@@ -4,7 +4,8 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "setup:python": "python3 -m venv .venv && .venv/bin/pip install -r requirements.txt",
+    "setup": "node ./scripts/setup.js",
+    "setup:python": "node ./scripts/setup.js --python",
     "auth": "node ./scripts/auth.js",
     "fetch": "node ./scripts/generate.js",
     "bitmap": "node ./scripts/python.js ./scripts/bitmapper.py",
