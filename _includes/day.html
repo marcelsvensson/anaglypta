@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
     <head>
-        <title id="title">AOTD</title>
+        <title id="title">{{ site.title | escape }}</title>
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta charset="utf-8" />
-        <link id="favicon" rel="icon" type="image/jpg" sizes="54x54" href="/favicon.ico">
+        <link id="favicon" rel="icon" type="image/jpg" sizes="{{ site.cover.cell }}x{{ site.cover.cell }}" href="favicon.ico">
         <style>
             <!--
                 body {
@@ -183,12 +183,12 @@
         </style>
     </head>
     <body>
-        <header>Playlist: <a class="ext" href="https://open.spotify.com/playlist/YOUR_PLAYLIST_ID">Your playlist name</a></header>
+        <header>{% if site.playlist.url %}Playlist: <a class="ext" href="{{ site.playlist.url | escape }}">{{ site.playlist.name | escape }}</a>{% endif %}</header>
         <main>
             <article class="open-sans-normal">
                 <iframe data-testid="embed-iframe" style="border-radius:12px" src="" width="100%" height="80" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
                 <div class="meta">
-                    <h2><strong></strong> - <a href="https://open.spotify.com/album/{{ albumId }}">{{ album }}</a></h2>
+                    <h2><strong></strong> - <a href="https://open.spotify.com/album/{{ albumId | escape }}">{{ album | escape }}</a></h2>
                     <span class="release"></span>
                     <span class="genre"></span>
                 </div>
@@ -217,34 +217,36 @@
             </article>
             <div class="album--list">
                 {% for album in collections.album reversed %}
-                    <a href="{{ album.url }}" data-genres="{% joinTags album.data.genreTags %}" data-artist="{{album.data.artist}}" data-track="{{album.data.id}}" data-album="{{album.data.album}}" data-album-id="{{album.data.albumId}}" data-release="{{album.data.release}}" class="album--list__item {% joinTags album.data.genreTags %}" style="background-image: url('{{ album.data.images }}')">
+                    <a href="https://open.spotify.com/album/{{ album.data.albumId | escape }}" data-genres="{{ album.data.tags | genreNames | escape }}" data-artist="{{ album.data.artist | escape }}" data-track="{{ album.data.id | escape }}" data-album="{{ album.data.album | escape }}" data-album-id="{{ album.data.albumId | escape }}" data-release="{{ album.data.release | escape }}" class="album--list__item {{ album.data.tags | genreClasses }}" style="background-image: url('{{ album.data.images | escape }}')">
                     </a>
                 {% endfor %}
             </div>
         </main>
-        <canvas width="54" height="54" id="bitmap-canvas"></canvas>
+        <canvas width="{{ site.cover.cell }}" height="{{ site.cover.cell }}" id="bitmap-canvas"></canvas>
     </body>
     <script>
             <!--
-                async function setFavicon(nthAlbum) {
-                    let canvas = document.getElementById("bitmap-canvas"),
-                    ctx = canvas.getContext("2d");
+                // same grid as scripts/bitmapper.py (settings.json -> cover)
+                const cover = { col: {{ site.cover.col }}, row: {{ site.cover.row }}, gap: {{ site.cover.gap }}, cell: {{ site.cover.cell }} };
 
-                    const col = 10;
-                    const row = 10;
-                    const gap = 2;
-                    const scaledWidthWithGap = 54+gap
-                    const scaledHeightWithGap = 54+gap
-                    const modCol = nthAlbum % col;
-                    const invCol = (col) - modCol;
-                    const invRow = (row) - (1+(nthAlbum - (1+modCol)) / row);
-
-                    const albumCoverIcon = await createImageBitmap(image, 1+(scaledWidthWithGap*invCol), (scaledHeightWithGap*invRow)-gap, 54, 54);
-                    ctx.drawImage(albumCoverIcon, 0, 0);
-                    
-                    const dataURL = canvas.toDataURL();
+                // nthAlbum: 1 = oldest, total: number of albums on the page
+                async function setFavicon(nthAlbum, total) {
+                    const { col, row, gap, cell } = cover;
                     const favi = document.getElementById("favicon");
-                    favi.setAttribute("href", dataURL);
+
+                    // the bitmap holds the latest col*row albums, oldest bottom right, filling right to left, bottom to top
+                    const index = nthAlbum - 1 - Math.max(0, total - col * row);
+                    if (index < 0) {
+                        favi.setAttribute("href", "favicon.ico");
+                        return;
+                    }
+                    const x = gap + (cell + gap) * (col - 1 - index % col);
+                    const y = gap + (cell + gap) * (row - 1 - Math.floor(index / col));
+
+                    const canvas = document.getElementById("bitmap-canvas");
+                    const albumCoverIcon = await createImageBitmap(image, x, y, cell, cell);
+                    canvas.getContext("2d").drawImage(albumCoverIcon, 0, 0);
+                    favi.setAttribute("href", canvas.toDataURL());
                 }
 
                 function processEvent(e) {
@@ -265,13 +267,13 @@
                         genreContainer.remove();
                     });
                     
-                    const genreList = genres && genres.split(" ");
+                    const genreList = genres ? genres.split("|") : [];
                     const meta = article.querySelector("article .meta");
-                    if (genreList.length) {                        
+                    if (genreList.length) {
                         const fragment = new DocumentFragment();
-                        genreList.forEach((genre) => {                            
+                        genreList.forEach((genre) => {
                             const genreSpan = document.createElement("span");
-                            genreSpan.textContent = genre.split("genre-")[1].replace(/_/g, " ");
+                            genreSpan.textContent = genre;
                             genreSpan.className = "genre";
                             fragment.append(genreSpan);
                             
@@ -282,7 +284,7 @@
                     const albums = document.querySelector(".album--list")
                     const nthAlbum = albums.childElementCount - [].indexOf.call(albums.children, e.target);
 
-                    setFavicon(nthAlbum);
+                    setFavicon(nthAlbum, albums.childElementCount);
 
                     document.querySelector("#title").textContent = `${artist} - ${album}`
                 }
@@ -295,7 +297,7 @@
                 const image = new Image();
                 // Wait for the sprite sheet to load
                 image.onload = () => {
-                    elems[0].click();
+                    elems[0]?.click();
                 };
                 // Load the sprite sheet from an image file
                 image.src = "./bitmap.jpg";

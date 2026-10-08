@@ -11,8 +11,6 @@ const statePath = path.join(__dirname, "..", "state.json");
 // JSON strings are valid YAML scalars - this escapes colons, quotes, etc.
 const yaml = (value) => JSON.stringify(value ?? "");
 
-const toGenreTag = (genre) => `genre-${genre.toLowerCase().replace(/\s+/g, "_")}`;
-
 const buildFrontmatter = ({ track }, genres = []) => {
     const {
         id,
@@ -33,7 +31,6 @@ const buildFrontmatter = ({ track }, genres = []) => {
     release: ${yaml(release_date)}
     images: ${images?.[0]?.url ?? ""}
     tags:${tags}
-    genreTags: ${yaml(genres.map(toGenreTag).join(", "))}
 ---`;
 };
 

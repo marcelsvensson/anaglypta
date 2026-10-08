@@ -1,4 +1,7 @@
 {
+  "site": {
+    "title": ""
+  },
   "spotify": {
     "project": "album",
     "cover": { "col": 10, "row": 10, "width": 9, "height": 9, "scale": 6, "gap": 2 },
