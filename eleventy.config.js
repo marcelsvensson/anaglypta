@@ -29,6 +29,11 @@ module.exports = function(eleventyConfig) {
         }
     });
 
-    eleventyConfig.addPassthroughCopy({ "favicon.ico": "/", "album/bitmap.jpg": "/" });
+    eleventyConfig.addPassthroughCopy({ "favicon.ico": "favicon.ico", "album/bitmap.jpg": "bitmap.jpg" });
+
+    // the generated album/*.md files are gitignored, so don't let 11ty skip .gitignore'd files
+    eleventyConfig.setUseGitIgnore(false);
+    ["README.md", "CLAUDE.md", "test/**", "tmp/**", ".venv/**"].forEach((pattern) => eleventyConfig.ignores.add(pattern));
+
     
 }
