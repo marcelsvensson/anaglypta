@@ -11,7 +11,7 @@
     "bitmap": "node ./scripts/python.js ./scripts/bitmapper.py",
     "collage": "node ./scripts/python.js ./scripts/bitmapper_collage.py --randomize",
     "full": "npm run fetch && npm run bitmap && node ./scripts/python.js ./scripts/bitmapper_collage.py --cover",
-    "daily": "npm run fetch && npm run bitmap && node ./scripts/python.js ./scripts/bitmapper_collage.py",
+    "daily": "node ./scripts/generate.js --limit 1 && npm run bitmap && node ./scripts/python.js ./scripts/bitmapper_collage.py --latest",
     "clean": "node ./scripts/clean.js",
     "reset": "node ./scripts/clean.js --reset",
     "test": "npm run test:node && npm run test:python",

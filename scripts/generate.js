@@ -67,6 +67,61 @@ const filterNewItems = (items, known, onSkip = () => {}) => items.filter((entry)
     return true;
 });
 
+// walks the playlist from offset, page by page, until it has `limit` new albums or the playlist ends.
+// returns { entries, offset, total } - offset points right after the last song it took (or the end of the playlist),
+// so the next run continues there. When songs were removed (the playlist is shorter than last time, or the offset is
+// past its end) the positions have shifted: it starts over from the top once, the duplicate check keeps it from
+// adding anything twice
+const collectNewAlbums = async ({ getPage, offset = 0, known, limit = Infinity, previousTotal = null, onSkip, onRestart = () => {} }) => {
+    const entries = [];
+    let position = offset;
+    let restarted = false;
+    let total = null;
+
+    while (entries.length < limit) {
+        const page = await getPage(position);
+        total = page.total ?? total;
+        const shrunk = total !== null && ((previousTotal !== null && total < previousTotal) || position > total);
+        if (shrunk && !restarted && position > 0) {
+            restarted = true;
+            onRestart();
+            position = 0;
+            continue;
+        }
+
+        const pageStart = position;
+        for (const item of page.items) {
+            if (filterNewItems([item], known, onSkip).length) {
+                entries.push(item);
+                if (entries.length >= limit) {
+                    return { entries, offset: pageStart + item.position + 1, total };
+                }
+            }
+        }
+        position = pageStart + page.count;
+        if (!page.next || page.count === 0) {
+            break;
+        }
+    }
+    return { entries, offset: position, total };
+};
+
+// room left under maxAlbums (settings.json), counted in unique albums
+const freeSlots = (maxAlbums, known) => Math.max(0, maxAlbums - known.albumIds.size);
+
+// --limit <n>: the most new albums one run adds (daily uses 1), no --limit = all of them
+const parseLimit = (argv) => {
+    const index = argv.indexOf("--limit");
+    if (index === -1) {
+        return Infinity;
+    }
+    const limit = Number(argv[index + 1]);
+    if (!Number.isInteger(limit) || limit < 1) {
+        throw new Error(`--limit needs a whole number of albums, like --limit 1 (got "${argv[index + 1] ?? ""}")`);
+    }
+    return limit;
+};
+
 // <date>.md, then <date>-0.md, <date>-1.md, ... for albums added on the same day
 const fileNameFor = (date, exists) => {
     let fileName = `${date}.md`;
@@ -93,45 +148,62 @@ const getGenres = async (spotify, artistId) => {
 };
 
 const main = async () => {
+    const limit = parseLimit(process.argv);
     require("dotenv").config({ quiet: true });
     const spotify = require("../api/spotify");
     const state = readState();
     fs.mkdirSync(projectDir, { recursive: true });
     const known = readKnownIds(projectDir);
-    const skipDuplicate = ({ track }) => console.log(`Skipped "${track.album.name}" - already in the grid`);
+
+    const maxAlbums = settings.spotify.maxAlbums ?? 200;
+    const free = freeSlots(maxAlbums, known);
+    if (free === 0) {
+        console.log(`${project}/ already has ${known.albumIds.size} albums (maxAlbums in settings.json) - nothing added`);
+        return;
+    }
 
     state.spotify.playlist = await spotify.getPlaylistMeta();
     console.log(`Playlist: ${state.spotify.playlist.name}`);
 
     // playlistOffset = position in the playlist, daysFetched = number of album files
-    let offset = state.spotify.playlistOffset ?? state.spotify.daysFetched;
+    const { entries, offset, total } = await collectNewAlbums({
+        getPage: (position) => spotify.getPlaylistItems(position),
+        offset: state.spotify.playlistOffset ?? state.spotify.daysFetched,
+        known,
+        limit: Math.min(limit, free),
+        previousTotal: state.spotify.playlistTotal ?? null,
+        onSkip: ({ track }) => console.log(`Skipped "${track.album.name}" - already in the grid`),
+        onRestart: () => console.log("The playlist got shorter - checking it from the start"),
+    });
+
     let { lastDayFetched } = state.spotify;
-    let filesWritten = 0;
-    let page;
+    for (const entry of entries) {
+        const { album } = entry.track;
+        const genres = await getGenres(spotify, album.artists[0].id);
+        const date = new Date(entry.added_at).toLocaleDateString("sv");
+        const fileName = fileNameFor(date, (name) => fs.existsSync(path.join(projectDir, name)));
 
-    do {
-        page = await spotify.getPlaylistItems(offset);
-        offset += page.count;
-
-        for (const entry of filterNewItems(page.items, known, skipDuplicate)) {
-            const genres = await getGenres(spotify, entry.track.album.artists[0].id);
-            const date = new Date(entry.added_at).toLocaleDateString("sv");
-            const fileName = fileNameFor(date, (name) => fs.existsSync(path.join(projectDir, name)));
-
-            fs.writeFileSync(path.join(projectDir, fileName), buildFrontmatter(entry, genres));
-            filesWritten++;
-            if (date > lastDayFetched) {
-                lastDayFetched = date;
-            }
+        fs.writeFileSync(path.join(projectDir, fileName), buildFrontmatter(entry, genres));
+        console.log(`Added "${album.name}" by ${album.artists[0].name}`);
+        if (date > lastDayFetched) {
+            lastDayFetched = date;
         }
-    } while (page.next);
+    }
 
     state.spotify.playlistOffset = offset;
+    if (total !== null) {
+        state.spotify.playlistTotal = total;
+    }
     state.spotify.lastDayFetched = lastDayFetched;
     state.spotify.daysFetched = fs.readdirSync(projectDir).filter((f) => f.endsWith(".md")).length;
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
 
-    console.log(`${filesWritten} new album(s) written, ${state.spotify.daysFetched} in total`);
+    if (!entries.length) {
+        console.log("No new albums in the playlist - add one and run daily again");
+    } else if (entries.length === free && free < limit) {
+        console.log(`Stopped at ${maxAlbums} albums (maxAlbums in settings.json)`);
+    }
+    console.log(`${entries.length} new album(s), ${known.albumIds.size} albums in ${project}/`);
 };
 
 if (require.main === module) {
@@ -144,6 +216,9 @@ if (require.main === module) {
 module.exports = {
     buildFrontmatter,
     filterNewItems,
+    collectNewAlbums,
+    freeSlots,
+    parseLimit,
     fileNameFor,
     readKnownIds,
 };

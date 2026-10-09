@@ -1,6 +1,7 @@
 """Builds <project>/collage.jpg: album covers in a grid around a centrepiece.
 
-The centrepiece is the pixel bitmap (run bitmapper.py first) or, with --cover (now default in the full-script), a random album cover.
+The centrepiece is the pixel bitmap (run bitmapper.py first), with --cover (used by full) a random album cover,
+or with --latest (used by daily) the newest album's cover. An album in the middle doesn't get a grid cell as well.
 Without --randomize the latest albums are used, oldest bottom right, filling right to left, bottom to top.
 """
 import argparse
@@ -30,7 +31,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-p", "--provider", default="spotify", help="the providing system, matches a key in settings.json")
     parser.add_argument("-r", "--randomize", action="store_true", help="pick and place albums randomly (from all albums)")
-    parser.add_argument("-c", "--cover", action="store_true", help="use a random album cover as centrepiece instead of the bitmap")
+    centrepiece_choice = parser.add_mutually_exclusive_group()
+    centrepiece_choice.add_argument("-c", "--cover", action="store_true", help="use a random album cover as centrepiece instead of the bitmap")
+    centrepiece_choice.add_argument("-l", "--latest", action="store_true", help="use the newest album's cover as centrepiece (the one daily just fetched)")
     args = parser.parse_args()
 
     settings = load_settings(args.provider)
@@ -45,10 +48,14 @@ def main():
     if not albums:
         sys.exit(f"No albums found in {project}/ - run `npm run fetch` first")
 
+    # an album in the middle doesn't get a grid cell as well
+    centre_album = albums[-1] if args.latest else random.choice(albums) if args.cover else None
+    pool = [album for album in albums if album is not centre_album]
+
     if args.randomize:
-        chosen = random.sample(albums, min(len(albums), len(cells)))
+        chosen = random.sample(pool, min(len(pool), len(cells)))
     else:
-        chosen = albums[-len(cells):]
+        chosen = pool[-len(cells):]
 
     canvas = Image.new("RGB", canvas_size(col, row, cell_width, cell_height, gap), "black")
     drawn = 0
@@ -63,13 +70,18 @@ def main():
     center_size = (size * cell_width + (size - 1) * gap, size * cell_height + (size - 1) * gap)
     centerpiece = None
     bitmap = ROOT / project / "bitmap.jpg"
-    if not args.cover:
-        if bitmap.exists():
-            with Image.open(bitmap) as image:
+    if centre_album:
+        path = ensure_cover(project, centre_album)
+        if path:
+            with Image.open(path) as image:
                 centerpiece = image.convert("RGB").resize(center_size)
         else:
-            warn(f"No {project}/bitmap.jpg yet (run bitmapper.py) - using a random cover instead")
-    if centerpiece is None:
+            warn("No cover for the centrepiece - using the bitmap instead")
+    if centerpiece is None and bitmap.exists():
+        with Image.open(bitmap) as image:
+            centerpiece = image.convert("RGB").resize(center_size)
+    elif centerpiece is None and not centre_album:
+        warn(f"No {project}/bitmap.jpg yet (run bitmapper.py) - using a random cover instead")
         path = ensure_cover(project, random.choice(albums))
         if path:
             with Image.open(path) as image:

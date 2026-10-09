@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { buildFrontmatter, filterNewItems, fileNameFor, readKnownIds } = require("../scripts/generate");
+const { buildFrontmatter, filterNewItems, collectNewAlbums, freeSlots, parseLimit, fileNameFor, readKnownIds } = require("../scripts/generate");
 const { normalizePage } = require("../api/spotify");
 const fixture = require("./fixtures/playlist-items.json");
 
@@ -110,5 +110,96 @@ test("readKnownIds reads track and album ids from old and new album files", () =
         assert.deepEqual([...known.albumIds].sort(), ["album1", "oldAlbum"]);
     } finally {
         fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+// a fake playlist in the raw 2026 /items shape, served in pages of 5 like spotify.getPlaylistItems
+const rawSong = (id, albumId) => ({
+    added_at: "2026-01-01T10:00:00Z",
+    item: { type: "track", id, name: `Song ${id}`, album: { id: albumId, name: `Album ${albumId}`, artists: [{ id: "x", name: "X" }], images: [] } },
+});
+const rawLocal = { added_at: "2026-01-01T10:00:00Z", item: { type: "track", is_local: true, id: null } };
+const pagesOf = (raw, size = 5) => async (position) => normalizePage({
+    items: raw.slice(position, position + size),
+    next: position + size < raw.length ? "next" : null,
+    total: raw.length,
+});
+const known = (albumIds = [], trackIds = []) => ({ trackIds: new Set(trackIds), albumIds: new Set(albumIds) });
+const albumIdsOf = ({ entries }) => entries.map(({ track }) => track.album.id);
+
+test("collectNewAlbums takes one album and stops right after it", async () => {
+    const raw = [rawLocal, rawSong("s1", "A"), rawSong("s2", "B"), rawSong("s3", "C")];
+    const seen = known();
+    const first = await collectNewAlbums({ getPage: pagesOf(raw), offset: 0, known: seen, limit: 1 });
+    assert.deepEqual(albumIdsOf(first), ["A"]);
+    assert.equal(first.offset, 2, "the local file before it counts too");
+
+    const second = await collectNewAlbums({ getPage: pagesOf(raw), offset: first.offset, known: seen, limit: 1 });
+    assert.deepEqual(albumIdsOf(second), ["B"], "nothing on the page is skipped");
+    assert.equal(second.offset, 3);
+});
+
+test("collectNewAlbums looks past duplicates, across pages", async () => {
+    const raw = ["A", "B", "A", "C", "B", "C", "A", "D"].map((album, i) => rawSong(`s${i}`, album));
+    const skipped = [];
+    const result = await collectNewAlbums({
+        getPage: pagesOf(raw), offset: 0, known: known(["A", "B", "C"]), limit: 1, onSkip: ({ track }) => skipped.push(track.id),
+    });
+    assert.deepEqual(albumIdsOf(result), ["D"]);
+    assert.equal(result.offset, 8);
+    assert.equal(skipped.length, 7);
+});
+
+test("collectNewAlbums with nothing new ends at the end of the playlist", async () => {
+    const raw = [rawSong("s1", "A"), rawSong("s2", "B")];
+    const result = await collectNewAlbums({ getPage: pagesOf(raw), offset: 0, known: known(["A", "B"]), limit: 1 });
+    assert.deepEqual(result.entries, []);
+    assert.equal(result.offset, 2);
+    assert.equal(result.total, 2);
+});
+
+test("collectNewAlbums without a limit takes every new album", async () => {
+    const raw = ["A", "B", "A", "C", "D", "E", "F"].map((album, i) => rawSong(`s${i}`, album));
+    const result = await collectNewAlbums({ getPage: pagesOf(raw), offset: 0, known: known() });
+    assert.deepEqual(albumIdsOf(result), ["A", "B", "C", "D", "E", "F"]);
+    assert.equal(result.offset, 7);
+});
+
+test("collectNewAlbums starts over when songs were removed from the playlist", async () => {
+    // last time the playlist had 6 songs and we stopped at 6, now one is gone and "N" moved before the old offset
+    const raw = [rawSong("s1", "A"), rawSong("s2", "B"), rawSong("n1", "N"), rawSong("s4", "C"), rawSong("s5", "D")];
+    let restarts = 0;
+    const seen = known(["A", "B", "C", "D"], ["s1", "s2", "s4", "s5"]);
+    const result = await collectNewAlbums({
+        getPage: pagesOf(raw), offset: 6, known: seen, limit: 1, previousTotal: 6, onRestart: () => restarts++,
+    });
+    assert.equal(restarts, 1);
+    assert.deepEqual(albumIdsOf(result), ["N"]);
+    assert.equal(result.offset, 3);
+});
+
+test("collectNewAlbums doesn't restart when the playlist only grew", async () => {
+    const raw = [rawSong("s1", "A"), rawSong("s2", "B"), rawSong("s3", "C")];
+    let restarts = 0;
+    const result = await collectNewAlbums({
+        getPage: pagesOf(raw), offset: 2, known: known(["A", "B"]), limit: 1, previousTotal: 2, onRestart: () => restarts++,
+    });
+    assert.equal(restarts, 0);
+    assert.deepEqual(albumIdsOf(result), ["C"]);
+});
+
+test("freeSlots counts the room left under maxAlbums", () => {
+    const withAlbums = (n) => known(Array.from({ length: n }, (_, i) => `a${i}`));
+    assert.equal(freeSlots(200, withAlbums(0)), 200);
+    assert.equal(freeSlots(200, withAlbums(199)), 1);
+    assert.equal(freeSlots(200, withAlbums(200)), 0);
+    assert.equal(freeSlots(200, withAlbums(250)), 0);
+});
+
+test("parseLimit reads --limit", () => {
+    assert.equal(parseLimit(["node", "generate.js"]), Infinity);
+    assert.equal(parseLimit(["node", "generate.js", "--limit", "1"]), 1);
+    for (const bad of [["--limit"], ["--limit", "0"], ["--limit", "one"], ["--limit", "1.5"]]) {
+        assert.throws(() => parseLimit(bad), /--limit needs a whole number/);
     }
 });

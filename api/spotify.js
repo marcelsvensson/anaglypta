@@ -143,8 +143,10 @@ const getPlaylistItems = async (offset = 0) => {
   return normalizePage(page);
 };
 
-// both the 2026 /items shape (entry.item) and the legacy /tracks shape (entry.track) -> { items: [{ added_at, track }], count, next }
-// skips local files, podcast episodes and removed tracks, count stays the raw number of entries (for the offset)
+// both the 2026 /items shape (entry.item) and the legacy /tracks shape (entry.track)
+// -> { items: [{ added_at, track, position }], count, next, total }
+// skips local files, podcast episodes and removed tracks. position (the place on the page) and count (the raw
+// number of entries) still include them, they're what the playlist offset is counted in. total = the playlist's length
 const normalizePage = (page) => {
   if (!Array.isArray(page?.items)) {
     throw new Error(
@@ -153,10 +155,10 @@ const normalizePage = (page) => {
   }
 
   const items = page.items
-    .map((entry) => ({ added_at: entry.added_at, track: entry.item ?? entry.track }))
+    .map((entry, position) => ({ added_at: entry.added_at, track: entry.item ?? entry.track, position }))
     .filter(({ track }) => track?.id && track.type !== "episode" && !track.is_local);
 
-  return { items, count: page.items.length, next: page.next ?? null };
+  return { items, count: page.items.length, next: page.next ?? null, total: page.total ?? null };
 };
 
 module.exports = {

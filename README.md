@@ -62,7 +62,7 @@ Good to know:
 |---|---|---|
 | `npm run collage` | Remixes the collage: picks albums at random from the ones you already have. No Spotify needed. | You have your albums and just want a new background. |
 | `npm run full` | Fetches the whole playlist, then builds the bitmap and the collage in playlist order, with a random album cover as the centrepiece. | The first run, or to catch up after adding many albums. |
-| `npm run daily` | The day-by-day build-up: fetches new albums, updates the bitmap and redraws the collage around it. | Once a day, to reveal one album at a time. |
+| `npm run daily` | The day-by-day reveal: adds **one** new album (skipping albums you already have, further down the playlist if needed), updates the bitmap and puts the new album in the middle of the collage. | Once a day, to reveal one album at a time. |
 
 Every album appears once: if the playlist has several songs from the same album, the first one added wins.
 
@@ -70,6 +70,7 @@ Extra options can be passed after `--`:
 
 ```sh
 npm run collage -- --cover      # a random album cover in the middle instead of the bitmap
+npm run collage -- --latest     # the newest album in the middle
 ```
 
 ## All commands
@@ -83,7 +84,7 @@ npm run collage -- --cover      # a random album cover in the middle instead of 
 | `npm run bitmap` | Draw `album/bitmap.jpg` |
 | `npm run collage` | Draw `album/collage.jpg` with random albums (`-- --cover` for a cover centrepiece) |
 | `npm run full` | fetch + bitmap + collage (cover centrepiece) |
-| `npm run daily` | fetch + bitmap + collage (bitmap centrepiece) |
+| `npm run daily` | fetch one new album + bitmap + collage (newest album centrepiece) |
 | `npm run clean` | Remove what can be rebuilt (the cover cache in `tmp/`) |
 | `npm run reset` | Start over: also removes your fetched albums and images (asks first) |
 | `npm test` | Run the tests (`test:node` and `test:python` separately) |
@@ -109,10 +110,11 @@ Created by `npm run setup` from [`.example.env`](.example.env). Never commit it.
 | Setting | What |
 |---|---|
 | `spotify.project` | Folder for the album files and images (default `album`) |
+| `spotify.maxAlbums` | The most albums the folder will hold (default `200`). At the limit, `fetch`, `full` and `daily` add nothing more |
 | `spotify.cover` | The pixel bitmap: `col` × `row` tiles, each cover shrunk to `width` × `height` pixels and enlarged `scale` times, with `gap` pixels between tiles |
 | `spotify.collage` | The collage grid, same keys as `cover`, plus `center` (top-left cell and size of the centrepiece, in cells) and `skip` (cells to leave empty, as `[col, row]`) |
 
-The bitmap holds `col × row` albums (100 by default). When the playlist grows past that, it shows the latest 100. `npm run collage` picks from all of them.
+The bitmap holds `col × row` albums (100 by default). When you have more, it shows the latest 100, and `npm run collage` picks from all of them, up to `maxAlbums`.
 
 ## Run it every day
 
@@ -144,6 +146,9 @@ Everything generated (`album/`, `tmp/`, `state.json`) is ignored by git. `npm ru
 | `Port 8888 is busy` | Set `SPOTIFY_AUTH_PORT` in `.env` and add the matching Redirect URI to the app. |
 | `Python packages missing` | Run `npm run setup:python`. |
 | `No albums found` | Run `npm run fetch` (or `npm run full`) first. |
+| `No new albums in the playlist` | Not an error: every album in the playlist is already in the grid. Add one to the playlist for tomorrow's `daily`. |
+| `album/ already has 200 albums` | You've reached `maxAlbums` in `settings.json`. Raise it, or `npm run reset` to start over. |
+| `The playlist got shorter - checking it from the start` | Not an error: songs were removed, so `fetch` looks through the playlist again. Albums you already have are skipped. |
 | `npm error Unknown cli flag` | Put `--` before the options: `npm run collage -- --cover`. |
 
 ## Testing
