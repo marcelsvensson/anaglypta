@@ -29,7 +29,7 @@ class RenderTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
-        (root / "album").mkdir()
+        (root / "album" / "data").mkdir(parents=True)
         (root / "tmp").mkdir()
         (root / "tmp" / "covers").mkdir()
         for i, colour in enumerate(COLOURS):
@@ -54,7 +54,7 @@ class RenderTest(unittest.TestCase):
     @staticmethod
     def write_album(root, file_name, album_id, track_id):
         album = {"albumId": album_id, "id": track_id, "images": "https://example.invalid/never-downloaded"}
-        (root / "album" / file_name).write_text(
+        (root / "album" / "data" / file_name).write_text(
             "---\n" + "".join(f"    {key}: {json.dumps(value)}\n" for key, value in album.items()) + "---")
 
     def tearDown(self):
@@ -133,7 +133,7 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(albums[0]["id"], "track0")
 
     def test_no_albums_exits(self):
-        for file in (self.root / "album").glob("*.md"):
+        for file in (self.root / "album" / "data").glob("*.md"):
             file.unlink()
         with self.assertRaises(SystemExit):
             bitmapper.main()

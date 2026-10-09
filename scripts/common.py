@@ -66,8 +66,8 @@ def album_key(album):
 
 
 def read_albums(project):
-    """All albums in <project>/*.md, oldest first, one per album (the first song added wins)."""
-    folder = ROOT / project
+    """All albums in <project>/data/*.md, oldest first, one per album (the first song added wins)."""
+    folder = ROOT / project / "data"
     if not folder.is_dir():
         return []
     files = sorted((f for f in folder.iterdir() if f.suffix == ".md"), key=lambda f: album_sort_key(f.name))

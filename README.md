@@ -80,7 +80,7 @@ npm run collage -- --latest     # the newest album in the middle
 | `npm run setup` | Gets everything ready (safe to re-run) |
 | `npm run setup:python` | Only the Python part (`.venv` with Pillow) |
 | `npm run auth` | Log in to Spotify (again) |
-| `npm run fetch` | Fetch new albums from the playlist into `album/` |
+| `npm run fetch` | Fetch new albums from the playlist into `album/data/` |
 | `npm run bitmap` | Draw `album/bitmap.jpg` |
 | `npm run collage` | Draw `album/collage.jpg` with random albums (`-- --cover` for a cover centrepiece) |
 | `npm run full` | fetch + bitmap + collage (cover centrepiece) |
@@ -128,7 +128,7 @@ Cron doesn't load your shell profile, so give it the folder that contains `node`
 
 ## How it works
 
-1. `npm run fetch` asks Spotify for the playlist's new entries and writes one Markdown file per album to `album/` (artist, album, cover URL, genres).
+1. `npm run fetch` asks Spotify for the playlist's new entries and writes one Markdown file per album to `album/data/` (artist, album, cover URL, genres). The images end up in `album/` itself.
 2. `npm run bitmap` and `npm run collage` download each cover once into `tmp/covers/` and draw the images with Python/Pillow.
 3. `state.json` remembers how far into the playlist you've come.
 

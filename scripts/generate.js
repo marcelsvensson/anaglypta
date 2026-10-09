@@ -1,4 +1,4 @@
-// fetch new items from the spotify playlist and write one <project>/<date>.md per album
+// fetch new items from the spotify playlist and write one <project>/data/<date>.md per album
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -6,6 +6,8 @@ const settings = require("../settings.json");
 const { project } = settings.spotify;
 
 const projectDir = path.join(__dirname, "..", project);
+// the album files live in a subfolder, so the images are easy to find in <project>/
+const dataDir = path.join(projectDir, "data");
 const statePath = path.join(__dirname, "..", "state.json");
 
 // JSON strings are valid YAML scalars - this escapes colons, quotes, etc.
@@ -34,7 +36,7 @@ const buildFrontmatter = ({ track }, genres = []) => {
 ---`;
 };
 
-// track and album ids already written to <project>/*.md
+// track and album ids already written to <project>/data/*.md
 const readKnownIds = (dir) => {
     const known = { trackIds: new Set(), albumIds: new Set() };
     for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".md"))) {
@@ -152,8 +154,8 @@ const main = async () => {
     require("dotenv").config({ quiet: true });
     const spotify = require("../api/spotify");
     const state = readState();
-    fs.mkdirSync(projectDir, { recursive: true });
-    const known = readKnownIds(projectDir);
+    fs.mkdirSync(dataDir, { recursive: true });
+    const known = readKnownIds(dataDir);
 
     const maxAlbums = settings.spotify.maxAlbums ?? 200;
     const free = freeSlots(maxAlbums, known);
@@ -181,9 +183,9 @@ const main = async () => {
         const { album } = entry.track;
         const genres = await getGenres(spotify, album.artists[0].id);
         const date = new Date(entry.added_at).toLocaleDateString("sv");
-        const fileName = fileNameFor(date, (name) => fs.existsSync(path.join(projectDir, name)));
+        const fileName = fileNameFor(date, (name) => fs.existsSync(path.join(dataDir, name)));
 
-        fs.writeFileSync(path.join(projectDir, fileName), buildFrontmatter(entry, genres));
+        fs.writeFileSync(path.join(dataDir, fileName), buildFrontmatter(entry, genres));
         console.log(`Added "${album.name}" by ${album.artists[0].name}`);
         if (date > lastDayFetched) {
             lastDayFetched = date;
@@ -195,7 +197,7 @@ const main = async () => {
         state.spotify.playlistTotal = total;
     }
     state.spotify.lastDayFetched = lastDayFetched;
-    state.spotify.daysFetched = fs.readdirSync(projectDir).filter((f) => f.endsWith(".md")).length;
+    state.spotify.daysFetched = fs.readdirSync(dataDir).filter((f) => f.endsWith(".md")).length;
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
 
     if (!entries.length) {
