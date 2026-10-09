@@ -6,8 +6,8 @@
 
 Turn a Spotify playlist into wallpaper. Anaglypta reads the albums in a playlist you own and makes:
 
-- **a pixel bitmap**: every album cover shrunk to a 9×9 pixel tile, in a 10×10 grid that fills up one album at a time
-- **a collage**: 101 album covers around a centrepiece (the pixel bitmap or a random cover), good as a desktop background
+- **a pixel bitmap**: every album cover shrunk to a 9×9 pixel tile, in a 10×10 grid that fills up one album at a time — challenge yourself or your unsuspecting colleagues to a game of "guess the album", heavily pixelated in the style of [@pappasparlor](https://www.instagram.com/pappasparlor/).
+- **a collage**: 101 album covers around a centrepiece (the pixel bitmap or a random cover), good as a desktop background or in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music.
 
 ## Requirements
 
