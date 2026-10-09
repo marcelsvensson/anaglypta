@@ -8,7 +8,6 @@ Turn a Spotify playlist into wallpaper. Anaglypta reads the albums in a playlist
 
 - **a pixel bitmap**: every album cover shrunk to a 9×9 pixel tile, in a 10×10 grid that fills up one album at a time
 - **a collage**: 100 album covers around a centrepiece (the pixel bitmap or a random cover), good as a desktop background
-- **a small website**: every album as a tile, with a Spotify player, genre filter and the album's pixel as favicon, ready to upload over SFTP
 
 ## Requirements
 
@@ -63,13 +62,14 @@ Good to know:
 |---|---|---|
 | `npm run collage` | Remixes the collage: picks albums at random from the ones you already have. No Spotify needed. | You have your albums and just want a new background. |
 | `npm run full` | Fetches the whole playlist, then builds the bitmap and the collage in playlist order, with a random album cover as the centrepiece. | The first run, or to catch up after adding many albums. |
-| `npm run daily` | Fetches new albums, updates the bitmap, builds the website and uploads it (if SFTP is set up). | Once a day, to reveal one album at a time. |
+| `npm run daily` | The day-by-day build-up: fetches new albums, updates the bitmap and redraws the collage around it. | Once a day, to reveal one album at a time. |
+
+Every album appears once: if the playlist has several songs from the same album, the first one added wins.
 
 Extra options can be passed after `--`:
 
 ```sh
 npm run collage -- --cover      # a random album cover in the middle instead of the bitmap
-npm run upload -- --dry-run     # show what would be uploaded, without connecting
 ```
 
 ## All commands
@@ -83,11 +83,8 @@ npm run upload -- --dry-run     # show what would be uploaded, without connectin
 | `npm run bitmap` | Draw `album/bitmap.jpg` |
 | `npm run collage` | Draw `album/collage.jpg` with random albums (`-- --cover` for a cover centrepiece) |
 | `npm run full` | fetch + bitmap + collage (cover centrepiece) |
-| `npm run daily` | fetch + bitmap + build + upload |
-| `npm run build` | Build the website into `_site/` |
-| `npm run dev` | Preview the website at http://localhost:8080 |
-| `npm run upload` | Upload the website over SFTP (`-- --dry-run` to check first) |
-| `npm run clean` | Remove what can be rebuilt (`_site/`, the cover cache in `tmp/`) |
+| `npm run daily` | fetch + bitmap + collage (bitmap centrepiece) |
+| `npm run clean` | Remove what can be rebuilt (the cover cache in `tmp/`) |
 | `npm run reset` | Start over: also removes your fetched albums and images (asks first) |
 | `npm test` | Run the tests (`test:node` and `test:python` separately) |
 
@@ -95,7 +92,7 @@ To reinstall the Node packages, use `npm ci`.
 
 ## Configuration
 
-### `.env`: credentials and connections
+### `.env`: credentials
 
 Created by `npm run setup` from [`.example.env`](.example.env). Never commit it.
 
@@ -106,32 +103,16 @@ Created by `npm run setup` from [`.example.env`](.example.env). Never commit it.
 | `CLIENT_SECRET` | optional | Only for apps created before 2026 (instead of `npm run auth`) |
 | `SPOTIFY_MARKET` | optional | Country code such as `SE`, for track availability |
 | `SPOTIFY_AUTH_PORT` | optional | Port for the login, default `8888` |
-| `SFTP_HOST`, `SFTP_USER` | optional | Server and user for the upload, leave empty to skip uploading |
-| `SFTP_PASSWORD` or `SFTP_PRIVATE_KEY_PATH` | optional | Password, or a private key such as `~/.ssh/id_ed25519` (plus `SFTP_PASSPHRASE` if it has one) |
-| `SFTP_PORT` | optional | Default `22` |
-| `SFTP_SPECIFIC_PATH` | optional | Folder to upload to, relative to where you land after logging in, e.g. `public_html/albums` |
 
 ### `settings.json`: how things look
 
 | Setting | What |
 |---|---|
-| `site.title` | Page title of the website. Empty = the playlist name. |
 | `spotify.project` | Folder for the album files and images (default `album`) |
 | `spotify.cover` | The pixel bitmap: `col` × `row` tiles, each cover shrunk to `width` × `height` pixels and enlarged `scale` times, with `gap` pixels between tiles |
 | `spotify.collage` | The collage grid, same keys as `cover`, plus `center` (top-left cell and size of the centrepiece, in cells) and `skip` (cells to leave empty, as `[col, row]`) |
 
 The bitmap holds `col × row` albums (100 by default). When the playlist grows past that, it shows the latest 100. `npm run collage` picks from all of them.
-
-## Upload to your own website
-
-Fill in the `SFTP_*` variables in `.env`, then check the settings without connecting:
-
-```sh
-npm run build
-npm run upload -- --dry-run
-```
-
-`npm run upload` sends `index.html`, `bitmap.jpg` and `favicon.ico` and creates the folder if needed. `npm run daily` does the same, and without SFTP settings it simply skips the upload.
 
 ## Run it every day
 
@@ -146,11 +127,10 @@ Cron doesn't load your shell profile, so give it the folder that contains `node`
 ## How it works
 
 1. `npm run fetch` asks Spotify for the playlist's new entries and writes one Markdown file per album to `album/` (artist, album, cover URL, genres).
-2. `npm run bitmap` and `npm run collage` download the covers once into `tmp/` and draw the images with Python/Pillow.
-3. `npm run build` turns the album files into the website with [Eleventy](https://www.11ty.dev).
-4. `state.json` remembers how far into the playlist you've come.
+2. `npm run bitmap` and `npm run collage` download each cover once into `tmp/covers/` and draw the images with Python/Pillow.
+3. `state.json` remembers how far into the playlist you've come.
 
-Everything generated (`album/*.md`, the images, `tmp/`, `_site/`, `state.json`) is ignored by git. `npm run reset` takes you back to a fresh start.
+Everything generated (`album/`, `tmp/`, `state.json`) is ignored by git. `npm run reset` takes you back to a fresh start.
 
 ## Troubleshooting
 
@@ -164,7 +144,7 @@ Everything generated (`album/*.md`, the images, `tmp/`, `_site/`, `state.json`) 
 | `Port 8888 is busy` | Set `SPOTIFY_AUTH_PORT` in `.env` and add the matching Redirect URI to the app. |
 | `Python packages missing` | Run `npm run setup:python`. |
 | `No albums found` | Run `npm run fetch` (or `npm run full`) first. |
-| Upload fails | Check the settings with `npm run upload -- --dry-run`. A half-filled `SFTP_*` setup lists what's missing. |
+| `npm error Unknown cli flag` | Put `--` before the options: `npm run collage -- --cover`. |
 
 ## Testing
 

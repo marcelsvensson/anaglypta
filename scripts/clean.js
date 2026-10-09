@@ -1,4 +1,4 @@
-// npm run clean: removes everything that can be rebuilt (_site, cover cache in tmp/)
+// npm run clean: removes everything that can be rebuilt (the cover cache in tmp/)
 // npm run reset: also removes the fetched albums, images and state.json for a fresh start (asks first, --yes skips that)
 // never touches .env, .spotify-token.json, .venv or node_modules
 const fs = require("node:fs");
@@ -11,7 +11,6 @@ const { project } = require("../settings.json").spotify;
 const filesIn = (dir, matches) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter(matches).map((file) => path.join(dir, file)) : []);
 
 const cleanTargets = () => [
-    path.join(ROOT, "_site"),
     path.join(ROOT, "scripts", "__pycache__"),
     ...filesIn(path.join(ROOT, "tmp"), (file) => file !== ".gitkeep"),
 ];

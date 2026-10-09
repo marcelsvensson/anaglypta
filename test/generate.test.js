@@ -3,9 +3,6 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-// the frontmatter parser eleventy uses
-const matter = require("gray-matter");
-
 const { buildFrontmatter, filterNewItems, fileNameFor, readKnownIds } = require("../scripts/generate");
 const { normalizePage } = require("../api/spotify");
 const fixture = require("./fixtures/playlist-items.json");
@@ -26,7 +23,24 @@ const entry = (overrides = {}) => ({
     },
 });
 
-test("buildFrontmatter round-trips every fixture album through eleventy's parser", () => {
+// reads the frontmatter the way parse_frontmatter in scripts/common.py does:
+// quoted values are JSON strings, unquoted ones are taken as-is, "- item" lines form the tags list
+const matter = (text) => {
+    const data = {};
+    let list = null;
+    for (const line of text.split("\n").slice(1, -1)) {
+        const item = line.match(/^\s*- (.*)$/);
+        if (item) {
+            list.push(JSON.parse(item[1]));
+            continue;
+        }
+        const [, key, value] = line.match(/^\s*(\w+):\s?(.*)$/);
+        data[key] = value === "" ? (list = []) : value === "[]" ? [] : value.startsWith("\"") ? JSON.parse(value) : value;
+    }
+    return { data };
+};
+
+test("buildFrontmatter round-trips every fixture album", () => {
     for (const item of normalizePage(fixture).items) {
         const data = matter(buildFrontmatter(item, ["metal", "r&b"])).data;
         assert.equal(data.album, item.track.album.name);
@@ -40,11 +54,11 @@ test("buildFrontmatter round-trips every fixture album through eleventy's parser
 test("buildFrontmatter keeps quotes, colons, html and unicode intact", () => {
     const tricky = entry({
         name: "Song: \"Live\" — part 2",
-        album: { ...entry().track.album, name: "Say \"Hi\": <Live> Ö", artists: [{ name: "Guns N' Roses: Live", id: "x" }] },
+        album: { ...entry().track.album, name: "\"Heroes\": <Live> Ö", artists: [{ name: "Guns N' Roses: Live", id: "x" }] },
     });
     const data = matter(buildFrontmatter(tricky, [])).data;
     assert.equal(data.song, "Song: \"Live\" — part 2");
-    assert.equal(data.album, "Say \"Hi\": <Live> Ö");
+    assert.equal(data.album, "\"Heroes\": <Live> Ö");
     assert.equal(data.artist, "Guns N' Roses: Live");
     assert.equal(data.release, "1999-12-31");
 });

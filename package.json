@@ -11,10 +11,7 @@
     "bitmap": "node ./scripts/python.js ./scripts/bitmapper.py",
     "collage": "node ./scripts/python.js ./scripts/bitmapper_collage.py --randomize",
     "full": "npm run fetch && npm run bitmap && node ./scripts/python.js ./scripts/bitmapper_collage.py --cover",
-    "daily": "npm run fetch && npm run bitmap && npm run build && npm run upload",
-    "build": "eleventy",
-    "dev": "eleventy --serve",
-    "upload": "node ./scripts/upload.js",
+    "daily": "npm run fetch && npm run bitmap && node ./scripts/python.js ./scripts/bitmapper_collage.py",
     "clean": "node ./scripts/clean.js",
     "reset": "node ./scripts/clean.js --reset",
     "test": "npm run test:node && npm run test:python",
@@ -32,13 +29,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@11ty/eleventy": "^3.1.6",
-    "dotenv": "^18.0.6",
-    "ssh2-sftp-client": "^12.1.1"
-  },
-  "allowScripts": {
-    "ssh2": false,
-    "cpu-features": false,
-    "fsevents": false
+    "dotenv": "^18.0.6"
   }
 }

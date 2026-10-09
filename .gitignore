@@ -13,11 +13,11 @@ node_modules/
 __pycache__/
 
 # generated output
-_site/
 tmp/*
 !tmp/.gitkeep
-album/*
-!album/album.json
+album/
+# built by the website on feature/website, stays on disk when switching branches
+_site/
 
 # logs (e.g. from a cron job)
 *.log

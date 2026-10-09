@@ -1,6 +1,0 @@
-{
-    "layout": "day.html",
-    "tags": "album",
-    "permalink": false,
-    "eleventyExcludeFromCollections": ["post"]
-}

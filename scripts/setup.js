@@ -255,22 +255,13 @@ const main = async () => {
     }
     input.close();
 
-    if (["SFTP_HOST", "SFTP_USER"].some((key) => env[key])) {
-        ok("SFTP upload configured (check it with `npm run upload -- --dry-run`)");
-    } else {
-        console.log("- SFTP upload not configured - optional, `npm run daily` just skips the upload (see README)");
-    }
-
-    const { title } = require("../settings.json").site ?? {};
-    console.log(`- Site title: ${title ? `"${title}"` : "the playlist name"} (site.title in settings.json)`);
-
     if (todo.length) {
         console.log(`\nAlmost there, still to do:\n${todo.map((item) => `  - ${item}`).join("\n")}`);
         console.log("Then run `npm run setup` again to check.");
         process.exitCode = 1;
     } else {
         console.log("\n✅ All set! Next:\n  npm run full     # fetch your playlist, build the bitmap and collage");
-        console.log("  npm run daily    # later: add new albums, build the site and upload it");
+        console.log("  npm run daily    # later: add new albums, one day at a time");
         console.log("  npm run collage  # remix the collage");
     }
 };

@@ -13,7 +13,7 @@ const exampleKeys = fs.readFileSync(path.join(ROOT, ".example.env"), "utf8")
 test("importing modules doesn't load .env", () => {
     const before = exampleKeys.filter((key) => key in process.env);
 
-    for (const module of ["api/spotify", "scripts/generate", "scripts/upload", "scripts/setup", "scripts/python", "eleventy.config"]) {
+    for (const module of ["api/spotify", "scripts/generate", "scripts/setup", "scripts/python"]) {
         require(path.join(ROOT, module));
     }
 

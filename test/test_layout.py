@@ -9,7 +9,7 @@ from bitmapper_collage import DEFAULT_CENTER, free_cells  # noqa: E402
 
 
 class BitmapPositionTest(unittest.TestCase):
-    """Oldest album bottom right, filling right to left, bottom to top (day.html's favicon math relies on this)."""
+    """Oldest album bottom right, filling right to left, bottom to top (the website branch's favicon math relies on this)."""
 
     def test_positions_on_a_10x10_grid(self):
         self.assertEqual(position(0, 10, 10), (9, 9))
