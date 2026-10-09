@@ -1,6 +1,6 @@
 """Builds <project>/collage.jpg: album covers in a grid around a centrepiece.
 
-The centrepiece is the pixel bitmap (run bitmapper.py first) or, with --cover, a random album cover.
+The centrepiece is the pixel bitmap (run bitmapper.py first) or, with --cover (now default in the full-script), a random album cover.
 Without --randomize the latest albums are used, oldest bottom right, filling right to left, bottom to top.
 """
 import argparse

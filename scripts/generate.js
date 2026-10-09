@@ -81,6 +81,7 @@ const getGenres = async (spotify, artistId) => {
 };
 
 const main = async () => {
+    require("dotenv").config({ quiet: true });
     const spotify = require("../api/spotify");
     const state = readState();
     fs.mkdirSync(projectDir, { recursive: true });

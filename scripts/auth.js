@@ -4,6 +4,7 @@ const http = require("node:http");
 const path = require("node:path");
 const { execFile } = require("node:child_process");
 
+require("dotenv").config({ quiet: true });
 const { TOKEN_PATH, env, postToken, saveTokenFile } = require("../api/spotify");
 
 const SCOPES = "playlist-read-private playlist-read-collaborative";

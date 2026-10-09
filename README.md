@@ -62,7 +62,7 @@ Good to know:
 | Command | What it does | When |
 |---|---|---|
 | `npm run collage` | Remixes the collage: picks albums at random from the ones you already have. No Spotify needed. | You have your albums and just want a new background. |
-| `npm run full` | Fetches the whole playlist, then builds the bitmap and the collage in playlist order. | The first run, or to catch up after adding many albums. |
+| `npm run full` | Fetches the whole playlist, then builds the bitmap and the collage in playlist order, with a random album cover as the centrepiece. | The first run, or to catch up after adding many albums. |
 | `npm run daily` | Fetches new albums, updates the bitmap, builds the website and uploads it (if SFTP is set up). | Once a day, to reveal one album at a time. |
 
 Extra options can be passed after `--`:
@@ -82,13 +82,14 @@ npm run upload -- --dry-run     # show what would be uploaded, without connectin
 | `npm run fetch` | Fetch new albums from the playlist into `album/` |
 | `npm run bitmap` | Draw `album/bitmap.jpg` |
 | `npm run collage` | Draw `album/collage.jpg` with random albums (`-- --cover` for a cover centrepiece) |
-| `npm run full` | fetch + bitmap + collage |
+| `npm run full` | fetch + bitmap + collage (cover centrepiece) |
 | `npm run daily` | fetch + bitmap + build + upload |
 | `npm run build` | Build the website into `_site/` |
 | `npm run dev` | Preview the website at http://localhost:8080 |
 | `npm run upload` | Upload the website over SFTP (`-- --dry-run` to check first) |
 | `npm run clean` | Remove what can be rebuilt (`_site/`, the cover cache in `tmp/`) |
 | `npm run reset` | Start over: also removes your fetched albums and images (asks first) |
+| `npm test` | Run the tests (`test:node` and `test:python` separately) |
 
 To reinstall the Node packages, use `npm ci`.
 
@@ -164,6 +165,14 @@ Everything generated (`album/*.md`, the images, `tmp/`, `_site/`, `state.json`) 
 | `Python packages missing` | Run `npm run setup:python`. |
 | `No albums found` | Run `npm run fetch` (or `npm run full`) first. |
 | Upload fails | Check the settings with `npm run upload -- --dry-run`. A half-filled `SFTP_*` setup lists what's missing. |
+
+## Testing
+
+```sh
+npm test
+```
+
+Runs the Node tests (`node:test`) and the Python tests (`unittest`) in a couple of seconds. They need no network, no Spotify account and no `.env`: Spotify responses come from the fixtures in `test/fixtures/`, and the image tests draw solid-colour covers in a temp folder.
 
 ## Spotify content
 

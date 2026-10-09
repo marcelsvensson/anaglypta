@@ -10,14 +10,16 @@
     "fetch": "node ./scripts/generate.js",
     "bitmap": "node ./scripts/python.js ./scripts/bitmapper.py",
     "collage": "node ./scripts/python.js ./scripts/bitmapper_collage.py --randomize",
-    "full": "npm run fetch && npm run bitmap && node ./scripts/python.js ./scripts/bitmapper_collage.py",
+    "full": "npm run fetch && npm run bitmap && node ./scripts/python.js ./scripts/bitmapper_collage.py --cover",
     "daily": "npm run fetch && npm run bitmap && npm run build && npm run upload",
     "build": "eleventy",
     "dev": "eleventy --serve",
     "upload": "node ./scripts/upload.js",
     "clean": "node ./scripts/clean.js",
     "reset": "node ./scripts/clean.js --reset",
-    "test": "echo \"No tests yet\" && exit 0"
+    "test": "npm run test:node && npm run test:python",
+    "test:node": "node --test",
+    "test:python": "node ./scripts/python.js -m unittest discover -s test -v"
   },
   "keywords": [
     "spotify",

@@ -1,6 +1,6 @@
+// spotify web api client - reads its settings from process.env, the entry points (generate.js, auth.js) load .env
 const fs = require("node:fs");
 const path = require("node:path");
-require("dotenv").config({ quiet: true });
 
 const API_URL = "https://api.spotify.com/v1";
 const TOKEN_URL = "https://accounts.spotify.com/api/token";
@@ -119,7 +119,7 @@ const getPlaylistMeta = async () => {
   return { name, url: external_urls?.spotify, owner: owner?.display_name };
 };
 
-// returns { items: [{ added_at, track }], count, next } - count is the raw number of entries on the page
+// returns normalizePage() of one page of the playlist
 const getPlaylistItems = async (offset = 0) => {
   const query = new URLSearchParams({ offset, limit: 100, ...market() });
   const playlistUrl = `${API_URL}/playlists/${env("PLAYLIST_ID")}`;
@@ -140,7 +140,13 @@ const getPlaylistItems = async (offset = 0) => {
     }
   }
 
-  if (!Array.isArray(page.items)) {
+  return normalizePage(page);
+};
+
+// both the 2026 /items shape (entry.item) and the legacy /tracks shape (entry.track) -> { items: [{ added_at, track }], count, next }
+// skips local files, podcast episodes and removed tracks, count stays the raw number of entries (for the offset)
+const normalizePage = (page) => {
+  if (!Array.isArray(page?.items)) {
     throw new Error(
       "Spotify returned no tracks - you must own or collaborate on the playlist and be logged in with `npm run auth`"
     );
@@ -150,7 +156,7 @@ const getPlaylistItems = async (offset = 0) => {
     .map((entry) => ({ added_at: entry.added_at, track: entry.item ?? entry.track }))
     .filter(({ track }) => track?.id && track.type !== "episode" && !track.is_local);
 
-  return { items, count: page.items.length, next: page.next };
+  return { items, count: page.items.length, next: page.next ?? null };
 };
 
 module.exports = {
@@ -161,4 +167,5 @@ module.exports = {
   getArtist,
   getPlaylistMeta,
   getPlaylistItems,
+  normalizePage,
 };
