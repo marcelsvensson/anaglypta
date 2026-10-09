@@ -34,24 +34,36 @@ const buildFrontmatter = ({ track }, genres = []) => {
 ---`;
 };
 
-// track ids already written to <project>/*.md
+// track and album ids already written to <project>/*.md
 const readKnownIds = (dir) => {
-    const ids = new Set();
+    const known = { trackIds: new Set(), albumIds: new Set() };
     for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".md"))) {
-        const match = fs.readFileSync(path.join(dir, file), "utf8").match(/^\s*id: "?([^"\n]+)"?$/m);
-        if (match) {
-            ids.add(match[1]);
+        const text = fs.readFileSync(path.join(dir, file), "utf8");
+        const trackId = text.match(/^\s*id: "?([^"\n]+)"?$/m);
+        const albumId = text.match(/^\s*albumId: "?([^"\n]+)"?$/m);
+        if (trackId) {
+            known.trackIds.add(trackId[1]);
+        }
+        if (albumId) {
+            known.albumIds.add(albumId[1]);
         }
     }
-    return ids;
+    return known;
 };
 
-// skips tracks that are already written (or appear twice in the playlist), adds new ids to knownIds
-const filterNewItems = (items, knownIds) => items.filter(({ track }) => {
-    if (knownIds.has(track.id)) {
+// one tile per album: skips songs whose track or album is already written (or came earlier in the playlist),
+// the first song added wins. Adds the new ids to known, onSkip(entry) is called for skipped duplicate albums
+const filterNewItems = (items, known, onSkip = () => {}) => items.filter((entry) => {
+    const { id, album } = entry.track;
+    if (known.trackIds.has(id)) {
         return false;
     }
-    knownIds.add(track.id);
+    known.trackIds.add(id);
+    if (known.albumIds.has(album.id)) {
+        onSkip(entry);
+        return false;
+    }
+    known.albumIds.add(album.id);
     return true;
 });
 
@@ -85,7 +97,8 @@ const main = async () => {
     const spotify = require("../api/spotify");
     const state = readState();
     fs.mkdirSync(projectDir, { recursive: true });
-    const knownIds = readKnownIds(projectDir);
+    const known = readKnownIds(projectDir);
+    const skipDuplicate = ({ track }) => console.log(`Skipped "${track.album.name}" - already in the grid`);
 
     state.spotify.playlist = await spotify.getPlaylistMeta();
     console.log(`Playlist: ${state.spotify.playlist.name}`);
@@ -100,7 +113,7 @@ const main = async () => {
         page = await spotify.getPlaylistItems(offset);
         offset += page.count;
 
-        for (const entry of filterNewItems(page.items, knownIds)) {
+        for (const entry of filterNewItems(page.items, known, skipDuplicate)) {
             const genres = await getGenres(spotify, entry.track.album.artists[0].id);
             const date = new Date(entry.added_at).toLocaleDateString("sv");
             const fileName = fileNameFor(date, (name) => fs.existsSync(path.join(projectDir, name)));

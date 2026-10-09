@@ -59,11 +59,23 @@ test("buildFrontmatter leaves the images line unquoted for the python scripts", 
     assert.equal(line, "    images: https://i.scdn.co/image/abc");
 });
 
+const song = (id, albumId) => ({ track: { id, album: { id: albumId, name: `Album ${albumId}` } } });
+
 test("filterNewItems skips known tracks and duplicates within a page", () => {
-    const known = new Set(["a"]);
-    const items = ["a", "b", "b", "c"].map((id) => ({ track: { id } }));
+    const known = { trackIds: new Set(["a"]), albumIds: new Set() };
+    const items = [song("a", "A"), song("b", "B"), song("b", "B"), song("c", "C")];
     assert.deepEqual(filterNewItems(items, known).map(({ track }) => track.id), ["b", "c"]);
-    assert.deepEqual([...known].sort(), ["a", "b", "c"]);
+    assert.deepEqual([...known.trackIds].sort(), ["a", "b", "c"]);
+});
+
+test("filterNewItems keeps one song per album, the first one wins", () => {
+    const known = { trackIds: new Set(), albumIds: new Set(["OLD"]) };
+    const skipped = [];
+    const items = [song("s1", "OLD"), song("s2", "NEW"), song("s3", "NEW"), song("s4", "OTHER")];
+    const kept = filterNewItems(items, known, ({ track }) => skipped.push(track.id));
+    assert.deepEqual(kept.map(({ track }) => track.id), ["s2", "s4"]);
+    assert.deepEqual(skipped, ["s1", "s3"]);
+    assert.deepEqual([...known.albumIds].sort(), ["NEW", "OLD", "OTHER"]);
 });
 
 test("fileNameFor numbers albums added on the same day", () => {
@@ -73,13 +85,15 @@ test("fileNameFor numbers albums added on the same day", () => {
     assert.equal(fileNameFor("2026-01-01", exists), "2026-01-01-1.md");
 });
 
-test("readKnownIds reads track ids from old and new album files", () => {
+test("readKnownIds reads track and album ids from old and new album files", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
     try {
-        fs.writeFileSync(path.join(dir, "old.md"), "---\n    artistId: x\n    albumId: y\n    id: oldId123\n---");
+        fs.writeFileSync(path.join(dir, "old.md"), "---\n    artistId: x\n    albumId: oldAlbum\n    id: oldId123\n---");
         fs.writeFileSync(path.join(dir, "new.md"), buildFrontmatter(entry({ id: "newId456" }), []));
         fs.writeFileSync(path.join(dir, "notes.txt"), "id: ignored");
-        assert.deepEqual([...readKnownIds(dir)].sort(), ["newId456", "oldId123"]);
+        const known = readKnownIds(dir);
+        assert.deepEqual([...known.trackIds].sort(), ["newId456", "oldId123"]);
+        assert.deepEqual([...known.albumIds].sort(), ["album1", "oldAlbum"]);
     } finally {
         fs.rmSync(dir, { recursive: true, force: true });
     }

@@ -31,11 +31,12 @@ class RenderTest(unittest.TestCase):
         root = Path(self.tmp.name)
         (root / "album").mkdir()
         (root / "tmp").mkdir()
+        (root / "tmp" / "covers").mkdir()
         for i, colour in enumerate(COLOURS):
-            album = {"id": f"track{i}", "images": "https://example.invalid/never-downloaded"}
-            (root / "album" / f"2026-01-0{i + 1}.md").write_text(
-                "---\n" + "".join(f"    {key}: {json.dumps(value)}\n" for key, value in album.items()) + "---")
-            Image.new("RGB", (8, 8), colour).save(root / "tmp" / f"album__track{i}.jpeg")
+            self.write_album(root, f"2026-01-0{i + 1}.md", f"album{i}", f"track{i}")
+            Image.new("RGB", (8, 8), colour).save(root / "tmp" / "covers" / f"album{i}.jpeg")
+        # another song from the first album, added later - must not get a tile of its own
+        self.write_album(root, "2026-01-04.md", "album0", "track9")
 
         self.patches = [
             mock.patch.object(common, "ROOT", root),
@@ -49,6 +50,12 @@ class RenderTest(unittest.TestCase):
         for patch in self.patches:
             patch.start()
         self.root = root
+
+    @staticmethod
+    def write_album(root, file_name, album_id, track_id):
+        album = {"albumId": album_id, "id": track_id, "images": "https://example.invalid/never-downloaded"}
+        (root / "album" / file_name).write_text(
+            "---\n" + "".join(f"    {key}: {json.dumps(value)}\n" for key, value in album.items()) + "---")
 
     def tearDown(self):
         for patch in self.patches:
@@ -69,7 +76,7 @@ class RenderTest(unittest.TestCase):
         for index, colour in enumerate(COLOURS):
             x, y = common.cell_xy(*bitmapper.position(index, 3, 2), 20, 20, 2)
             self.assertColour(self.colour_at(image, x + 10, y + 10), colour)
-        # the 4th cell is still empty
+        # the duplicate album didn't take the 4th cell
         x, y = common.cell_xy(*bitmapper.position(3, 3, 2), 20, 20, 2)
         self.assertColour(self.colour_at(image, x + 10, y + 10), (0, 0, 0))
 
@@ -83,6 +90,11 @@ class RenderTest(unittest.TestCase):
         for (c, r), colour in zip(cells, COLOURS):
             x, y = common.cell_xy(c, r, 10, 10, 2)
             self.assertColour(self.colour_at(image, x + 5, y + 5), colour)
+
+    def test_read_albums_keeps_the_first_song_per_album(self):
+        albums = common.read_albums("album")
+        self.assertEqual([album["albumId"] for album in albums], ["album0", "album1", "album2"])
+        self.assertEqual(albums[0]["id"], "track0")
 
     def test_no_albums_exits(self):
         for file in (self.root / "album").glob("*.md"):

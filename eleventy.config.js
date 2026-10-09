@@ -12,10 +12,40 @@ const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (char) => `&#${cha
 
 const genresOf = (tags) => [].concat(tags || []).filter((tag) => tag && tag !== "album" && tag !== "null");
 
+// same order as album_sort_key in scripts/common.py: <date>.md, <date>-0.md, <date>-1.md ... <date>-10.md
+const albumSortKey = (inputPath) => {
+    const name = inputPath.split("/").pop();
+    const match = name.match(/^(\d{4}-\d{2}-\d{2})(?:-(\d+))?\.md$/);
+    return match ? [match[1], match[2] === undefined ? -1 : Number(match[2])] : [name, -1];
+};
+
+const compareAlbums = (a, b) => {
+    const [dateA, suffixA] = albumSortKey(a.inputPath);
+    const [dateB, suffixB] = albumSortKey(b.inputPath);
+    return dateA === dateB ? suffixA - suffixB : (dateA < dateB ? -1 : 1);
+};
+
+// oldest first, one per album (the first song added wins) - same as read_albums in scripts/common.py,
+// the favicon in day.html relies on the site and the bitmap using the exact same albums in the same order
+const uniqueAlbums = (items) => {
+    const seen = new Set();
+    return [...items].sort(compareAlbums).filter(({ data, inputPath }) => {
+        const key = data.albumId || data.id || inputPath;
+        if (seen.has(key)) {
+            return false;
+        }
+        seen.add(key);
+        return true;
+    });
+};
+
 module.exports = function(eleventyConfig) {
+    // newest first, the order the page shows them in
+    eleventyConfig.addCollection("albums", (collectionApi) => uniqueAlbums(collectionApi.getFilteredByTag("album")).reverse());
+
     eleventyConfig.addCollection("genresOnly", function (collectionApi) {
         const genresList = new Set();
-        collectionApi.getAll().map( item => {
+        uniqueAlbums(collectionApi.getFilteredByTag("album")).map( item => {
             genresOf(item.data.tags).map( tag => genresList.add(tag) );
         });
         return genresList;

@@ -216,7 +216,7 @@
                 <div class="padder"></div>
             </article>
             <div class="album--list">
-                {% for album in collections.album reversed %}
+                {% for album in collections.albums %}
                     <a href="https://open.spotify.com/album/{{ album.data.albumId | escape }}" data-genres="{{ album.data.tags | genreNames | escape }}" data-artist="{{ album.data.artist | escape }}" data-track="{{ album.data.id | escape }}" data-album="{{ album.data.album | escape }}" data-album-id="{{ album.data.albumId | escape }}" data-release="{{ album.data.release | escape }}" class="album--list__item {{ album.data.tags | genreClasses }}" style="background-image: url('{{ album.data.images | escape }}')">
                     </a>
                 {% endfor %}

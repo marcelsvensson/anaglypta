@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from common import album_sort_key, canvas_size, cell_xy, parse_frontmatter  # noqa: E402
+from common import TMP, album_sort_key, canvas_size, cell_xy, cover_path, parse_frontmatter  # noqa: E402
 
 
 class AlbumSortKeyTest(unittest.TestCase):
@@ -36,6 +36,17 @@ class ParseFrontmatterTest(unittest.TestCase):
     def test_no_frontmatter(self):
         self.assertEqual(parse_frontmatter("just text"), {})
         self.assertEqual(parse_frontmatter(""), {})
+
+
+class CoverPathTest(unittest.TestCase):
+    def test_one_cover_per_album(self):
+        song = {"albumId": "A1", "id": "t1", "file": "2026-01-01.md"}
+        other_song = {"albumId": "A1", "id": "t2", "file": "2026-01-02.md"}
+        self.assertEqual(cover_path("album", song), TMP / "covers" / "A1.jpeg")
+        self.assertEqual(cover_path("album", song), cover_path("album", other_song))
+
+    def test_old_files_without_album_id_use_the_track_id(self):
+        self.assertEqual(cover_path("album", {"id": "t1", "file": "x.md"}), TMP / "covers" / "t1.jpeg")
 
 
 class GridMathTest(unittest.TestCase):

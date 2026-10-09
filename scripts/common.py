@@ -60,23 +60,32 @@ def parse_frontmatter(text):
     return data
 
 
+def album_key(album):
+    """Albums are unique by albumId (older files without one fall back to the track id)."""
+    return album.get("albumId") or album.get("id") or album["file"]
+
+
 def read_albums(project):
-    """All albums in <project>/*.md, oldest first."""
+    """All albums in <project>/*.md, oldest first, one per album (the first song added wins)."""
     folder = ROOT / project
     if not folder.is_dir():
         return []
     files = sorted((f for f in folder.iterdir() if f.suffix == ".md"), key=lambda f: album_sort_key(f.name))
     albums = []
+    seen = set()
     for file in files:
         album = parse_frontmatter(file.read_text(encoding="utf-8"))
         album["file"] = file.name
+        if album_key(album) in seen:
+            continue
+        seen.add(album_key(album))
         albums.append(album)
     return albums
 
 
 def cover_path(project, album):
-    key = album.get("id") or Path(album["file"]).stem
-    return TMP / f"{project}__{key}.jpeg"
+    """One cached cover per album, shared by every project."""
+    return TMP / "covers" / f"{album_key(album)}.jpeg"
 
 
 def ensure_cover(project, album, retries=3):
@@ -90,7 +99,7 @@ def ensure_cover(project, album, retries=3):
         warn(f"No image url in {album['file']}")
         return None
 
-    TMP.mkdir(exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True)
     part = path.with_suffix(".part")
     for attempt in range(1, retries + 1):
         try:
