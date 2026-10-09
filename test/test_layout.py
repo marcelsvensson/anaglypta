@@ -24,10 +24,10 @@ class BitmapPositionTest(unittest.TestCase):
 
 
 class CollageCellsTest(unittest.TestCase):
-    def test_default_layout_has_100_cells(self):
-        cells = free_cells(13, 9, DEFAULT_CENTER, [[12, 8]])
-        self.assertEqual(len(cells), 100)
-        self.assertEqual(cells[:2], [(11, 8), (10, 8)])
+    def test_default_layout_fills_every_cell_around_the_centre(self):
+        cells = free_cells(13, 9, DEFAULT_CENTER, [])
+        self.assertEqual(len(cells), 13 * 9 - 4 * 4)
+        self.assertEqual(cells[:2], [(12, 8), (11, 8)])
         self.assertEqual(cells[-1], (0, 0))
 
     def test_centre_and_skipped_cells_stay_free(self):
