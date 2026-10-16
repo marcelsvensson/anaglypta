@@ -65,8 +65,7 @@ const main = () => {
 
     // --collage (npm run random-meet): a new random collage first, the other options (--cover, --latest, --fill) are for it
     if (drawCollage) {
-        python("scripts/bitmapper.py");
-        python("scripts/bitmapper_collage.py", "--randomize", ...process.argv.slice(2).filter((arg) => !["--collage", "--dry-run"].includes(arg)));
+        python("scripts/collage.py", "--randomize", ...process.argv.slice(2).filter((arg) => !["--collage", "--dry-run"].includes(arg)));
     }
 
     for (const { source } of copies) {

@@ -4,10 +4,7 @@
 >
 > — [Wikipedia](https://en.wikipedia.org/wiki/Anaglypta)
 
-Turn a Spotify playlist into wallpaper. Anaglypta reads the albums in a playlist you own and makes:
-
-- **a pixel bitmap**: every album cover shrunk to a 9×9 pixel tile, in a 10×10 grid that fills up one album at a time — challenge yourself or your unsuspecting colleagues to a game of "guess the album", heavily pixelated in the style of [@pappasparlor](https://www.instagram.com/pappasparlor/).
-- **a collage**: 92 album covers around a big centrepiece (the pixel bitmap, a random cover or the newest album), or 117 without one, good as a desktop background or in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music.
+Turn a Spotify playlist into wallpaper. Anaglypta reads the albums in a playlist you own and makes **a collage**: 92 album covers around a big centrepiece (a random cover or the newest album), or 117 without one, good as a desktop background or in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music.
 
 ## Requirements
 
@@ -32,7 +29,7 @@ Turn a Spotify playlist into wallpaper. Anaglypta reads the albums in a playlist
 
 `npm run setup` walks you through the rest: it sets up Python, creates `.env`, asks for your Spotify Client ID and playlist link, and logs you in to Spotify. You can run it again at any time to check that everything is in place. `npm run full` fetches your playlist, `npm run collage` draws the images.
 
-Then look in `album/`: `bitmap.jpg` and `collage.jpg`.
+Then look in `album/`: `collage.jpg` (and a small `collage_thumbnail.jpg`).
 
 ## Create a Spotify app
 
@@ -62,8 +59,8 @@ Good to know:
 | Command | What it does | When |
 |---|---|---|
 | `npm run full` | Fetches the whole playlist (up to `maxAlbums`). Draws nothing. | The first run, or to catch up after adding many albums. |
-| `npm run collage` | Draws the bitmap and a new random collage from the albums you already have. No Spotify needed. | Whenever you want a new background. |
-| `npm run daily-new` | The day-by-day reveal: adds **one** new album (skipping albums you already have, further down the playlist if needed), updates the bitmap, puts the new album in the middle of the collage and sends it to Google Meet (if set up). | Once a day, to reveal one album at a time. |
+| `npm run collage` | Draws a new random collage from the albums you already have. No Spotify needed. | Whenever you want a new background. |
+| `npm run daily-new` | The day-by-day reveal: adds **one** new album (skipping albums you already have, further down the playlist if needed), puts it in the middle of the collage and sends it to Google Meet (if set up). | Once a day, to reveal one album at a time. |
 | `npm run random-meet` | A new random collage as your Google Meet background. Needs `npm run setup:meet` first. | As often as you like, e.g. every hour from cron. |
 
 Every album appears once: if the playlist has several songs from the same album, the first one added wins.
@@ -71,7 +68,7 @@ Every album appears once: if the playlist has several songs from the same album,
 `collage` and `random-meet` take an option for the middle of the collage, after `--`:
 
 ```sh
-npm run collage -- --cover          # a random album cover in the middle instead of the bitmap
+npm run collage -- --cover          # a random album cover in the middle (the default)
 npm run collage -- --latest         # the newest album in the middle
 npm run random-meet -- --fill       # no centrepiece, the middle is filled with albums too
 ```
@@ -85,9 +82,8 @@ npm run random-meet -- --fill       # no centrepiece, the middle is filled with 
 | `npm run setup:meet` | Optional: set up the collage as your Google Meet background (macOS + Chrome) |
 | `npm run auth` | Log in to Spotify (again) |
 | `npm run full` | Fetch new albums from the playlist into `album/data/` (all of them, up to `maxAlbums`) |
-| `npm run bitmap` | Draw only `album/bitmap.jpg` |
-| `npm run collage` | bitmap + `album/collage.jpg` with random albums (`-- --cover`, `-- --latest` or `-- --fill` for the centre) |
-| `npm run daily-new` | fetch one new album + bitmap + collage (newest album centrepiece) + meet |
+| `npm run collage` | Draw `album/collage.jpg` with random albums (`-- --cover`, `-- --latest` or `-- --fill` for the centre) |
+| `npm run daily-new` | fetch one new album + collage (newest album centrepiece) + meet |
 | `npm run random-meet` | collage (same options) + meet, only when Google Meet is set up |
 | `npm run clean` | Remove what can be rebuilt (the cover cache in `tmp/`) |
 | `npm run reset` | Start over: also removes your fetched albums and images (asks first) |
@@ -117,10 +113,9 @@ Created by `npm run setup` from [`.example.env`](.example.env). Never commit it.
 |---|---|
 | `spotify.project` | Folder for the album files and images (default `album`) |
 | `spotify.maxAlbums` | The most albums the folder will hold (default `200`). At the limit, `full` and `daily-new` add nothing more |
-| `spotify.cover` | The pixel bitmap: `col` × `row` tiles, each cover shrunk to `width` × `height` pixels and enlarged `scale` times, with `gap` pixels between tiles |
-| `spotify.collage` | The collage grid, same keys as `cover`, plus `center` (top-left cell and size of the centrepiece, in cells) and `skip` (cells to leave empty, as `[col, row]`) |
+| `spotify.collage` | The collage grid: `col` × `row` cells, each cover shrunk to `width` × `height` pixels and enlarged `scale` times, with `gap` pixels between cells, plus `center` (top-left cell and size of the centrepiece, in cells) and `skip` (cells to leave empty, as `[col, row]`) |
 
-The bitmap holds `col × row` albums (100 by default). When you have more, it shows the latest 100, and `npm run collage` picks from all of them, up to `maxAlbums`.
+The collage has 92 cells around the centrepiece by default. When you have more albums, `npm run collage` picks at random from all of them, up to `maxAlbums`.
 
 ## Google Meet background (experimental)
 
@@ -157,7 +152,7 @@ Cron doesn't load your shell profile, so give it the folder that contains `node`
 ## How it works
 
 1. `npm run full` (and `daily-new`) asks Spotify for the playlist's new entries and writes one Markdown file per album to `album/data/` (artist, album, cover URL, genres). The images end up in `album/` itself.
-2. `npm run bitmap` and `npm run collage` download each cover once into `tmp/covers/` and draw the images with Python/Pillow.
+2. `npm run collage` downloads each cover once into `tmp/covers/` and draws the collage with Python/Pillow.
 3. `state.json` remembers how far into the playlist you've come.
 
 Everything generated (`album/`, `tmp/`, `state.json`) is ignored by git. `npm run reset` takes you back to a fresh start.

@@ -370,7 +370,7 @@ const main = async () => {
         console.log("Then run `npm run setup` again to check.");
         process.exitCode = 1;
     } else {
-        console.log("\n✅ All set! Next:\n  npm run full       # fetch your playlist\n  npm run collage    # draw the bitmap and a random collage");
+        console.log("\n✅ All set! Next:\n  npm run full       # fetch your playlist\n  npm run collage    # draw a random collage");
         console.log("  npm run daily-new  # later: add one new album a day, with it in the middle of the collage");
         console.log("  npm run collage    # remix the collage whenever you like");
     }

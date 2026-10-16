@@ -1,7 +1,7 @@
 """Builds <project>/collage.jpg: album covers in a grid around a centrepiece.
 
-The centrepiece is the pixel bitmap (run bitmapper.py first), with --cover (used by full) a random album cover,
-or with --latest (used by daily-new) the newest album's cover. An album in the middle doesn't get a grid cell as well.
+The centrepiece is a random album's cover (also with --cover), or with --latest (used by daily-new) the newest album's
+cover. An album in the middle doesn't get a grid cell as well.
 With --fill there's no centrepiece: the centre cells are filled with albums like the rest.
 Without --randomize the latest albums are used, oldest bottom right, filling right to left, bottom to top.
 """
@@ -30,23 +30,11 @@ def free_cells(col, row, center, skip):
             if not in_center(c, r) and (c, r) not in skipped]
 
 
-def load_centerpiece(project, centre_album, albums, size):
-    """The centre album's cover, else the bitmap, else a random cover (resized to size), None if there's nothing."""
-    bitmap = ROOT / project / "bitmap.jpg"
-    if centre_album:
-        path = ensure_cover(project, centre_album)
-        if path:
-            with Image.open(path) as image:
-                return image.convert("RGB").resize(size)
-        warn("No cover for the centrepiece - using the bitmap instead")
-    if bitmap.exists():
-        with Image.open(bitmap) as image:
-            return image.convert("RGB").resize(size)
-    if centre_album:
-        return None
-    warn(f"No {project}/bitmap.jpg yet (run bitmapper.py) - using a random cover instead")
-    path = ensure_cover(project, random.choice(albums))
+def load_centerpiece(project, centre_album, size):
+    """The centre album's cover resized to size, None (an empty centre) when it can't be downloaded."""
+    path = ensure_cover(project, centre_album)
     if not path:
+        warn("No cover for the centrepiece - leaving the centre empty")
         return None
     with Image.open(path) as image:
         return image.convert("RGB").resize(size)
@@ -57,9 +45,9 @@ def main():
     parser.add_argument("-p", "--provider", default="spotify", help="the providing system, matches a key in settings.json")
     parser.add_argument("-r", "--randomize", action="store_true", help="pick and place albums randomly (from all albums)")
     centrepiece_choice = parser.add_mutually_exclusive_group()
-    centrepiece_choice.add_argument("-c", "--cover", action="store_true", help="use a random album cover as centrepiece instead of the bitmap")
+    centrepiece_choice.add_argument("-c", "--cover", action="store_true", help="a random album cover as centrepiece (the default)")
     centrepiece_choice.add_argument("-f", "--fill", action="store_true", help="no centrepiece: fill the centre with albums like the rest")
-    centrepiece_choice.add_argument("-l", "--latest", action="store_true", help="use the newest album's cover as centrepiece (the one daily just fetched)")
+    centrepiece_choice.add_argument("-l", "--latest", action="store_true", help="the newest album's cover as centrepiece (the one daily-new just fetched)")
     args = parser.parse_args()
 
     settings = load_settings(args.provider)
@@ -78,7 +66,7 @@ def main():
         sys.exit(f"No albums found in {project}/ - run `npm run full` first")
 
     # an album in the middle doesn't get a grid cell as well
-    centre_album = albums[-1] if args.latest else random.choice(albums) if args.cover else None
+    centre_album = None if args.fill else albums[-1] if args.latest else random.choice(albums)
     pool = [album for album in albums if album is not centre_album]
 
     if args.randomize:
@@ -98,7 +86,7 @@ def main():
     if not args.fill:
         size = center["size"]
         center_size = (size * cell_width + (size - 1) * gap, size * cell_height + (size - 1) * gap)
-        centerpiece = load_centerpiece(project, centre_album, albums, center_size)
+        centerpiece = load_centerpiece(project, centre_album, center_size)
         if centerpiece:
             canvas.paste(centerpiece, cell_xy(center["col"], center["row"], cell_width, cell_height, gap))
 

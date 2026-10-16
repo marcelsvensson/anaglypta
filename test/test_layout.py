@@ -4,23 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from bitmapper import position  # noqa: E402
-from bitmapper_collage import DEFAULT_CENTER, free_cells  # noqa: E402
-
-
-class BitmapPositionTest(unittest.TestCase):
-    """Oldest album bottom right, filling right to left, bottom to top (the website branch's favicon math relies on this)."""
-
-    def test_positions_on_a_10x10_grid(self):
-        self.assertEqual(position(0, 10, 10), (9, 9))
-        self.assertEqual(position(1, 10, 10), (8, 9))
-        self.assertEqual(position(9, 10, 10), (0, 9))
-        self.assertEqual(position(10, 10, 10), (9, 8))
-        self.assertEqual(position(99, 10, 10), (0, 0))
-
-    def test_every_cell_used_once(self):
-        cells = {position(i, 10, 10) for i in range(100)}
-        self.assertEqual(len(cells), 100)
+from collage import DEFAULT_CENTER, free_cells  # noqa: E402
 
 
 class CollageCellsTest(unittest.TestCase):

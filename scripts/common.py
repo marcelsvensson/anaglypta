@@ -1,4 +1,4 @@
-"""Shared helpers for bitmapper.py and bitmapper_collage.py."""
+"""Shared helpers for collage.py."""
 import json
 import re
 import sys

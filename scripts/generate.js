@@ -22,7 +22,7 @@ const buildFrontmatter = ({ track }, genres = []) => {
     const { id: artistId, name: artist } = artists[0];
     const tags = genres.length ? "\n" + genres.map((genre) => `    - ${yaml(genre)}`).join("\n") : " []";
 
-    // images is left unquoted, bitmapper.py reads that line as-is
+    // images is left unquoted, scripts/common.py reads that line as-is
     return `---
     artist: ${yaml(artist)}
     artistId: ${yaml(artistId)}
