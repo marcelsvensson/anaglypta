@@ -131,23 +131,36 @@ It walks you through uploading `album/collage.jpg` as a background in Google Mee
 
 This relies on Chrome internals that aren't documented: after a Chrome update, or if you upload the background again, run `npm run setup:meet` again. To set the paths by hand, upload a background and point `GOOGLE_MEET_BLOB_PATH` (the large file) and `GOOGLE_MEET_BLOB_PATH_THUMBNAIL` (the small one) at the two newest files under `~/Library/Application Support/Google/Chrome/Default/IndexedDB/https_meet.google.com_0.indexeddb.blob` (`ls -lt` helps). Leave both variables empty and the step is skipped.
 
-## Run it every day
+## Run it on a schedule
 
-With cron (macOS/Linux), `crontab -e`. One new album every morning:
+`cron.sh` in the project folder runs any of the commands from cron. It finds Node by itself (asdf, nvm or Homebrew), so the cron line only needs the path to the script.
 
-```cron
-0 8 * * * cd /path/to/anaglypta && PATH=/path/to/node/bin:$PATH npm run daily-new >> daily.log 2>&1
+**1. Try it in the terminal**, from the project folder:
+
+```sh
+./cron.sh collage
 ```
 
-Or a new random Google Meet background every hour on weekdays (after `npm run setup:meet`), with a random cover in the middle:
+**2. Add the job** with `crontab -e` (`EDITOR=nano crontab -e` if you'd rather not use vim). Use the full path to your project folder (`pwd` in the project folder shows it). One new album every morning at 8:
 
 ```cron
-0 9-17 * * 1-5 cd /path/to/anaglypta && PATH=/path/to/node/bin:$PATH npm run random-meet -- --cover >> meet.log 2>&1
+0 8 * * * /path/to/anaglypta/cron.sh daily-new >> /path/to/anaglypta/daily.log 2>&1
 ```
 
-Reload Meet (or start a new meeting) to see the new background.
+Or a new random Google Meet background every hour, 9–17 on weekdays (after `npm run setup:meet`):
 
-Cron doesn't load your shell profile, so give it the folder that contains `node` and `npm` (`dirname "$(which npm)"`). On macOS, cron may need **Full Disk Access** (System Settings → Privacy & Security) if the project lives in a protected folder such as Documents.
+```cron
+0 9-17 * * 1-5 /path/to/anaglypta/cron.sh random-meet >> /path/to/anaglypta/meet.log 2>&1
+```
+
+Options go after the command, like in the terminal but without `--`: `cron.sh random-meet --latest` or `cron.sh random-meet --fill`. Reload Meet (or start a new meeting) to see the new background.
+
+**3. Check it ran:** each run starts with a timestamped line in the log (`tail /path/to/anaglypta/daily.log`). `crontab -l` lists your jobs.
+
+Good to know on macOS:
+- Cron may need **Full Disk Access** (System Settings → Privacy & Security → Full Disk Access, add `/usr/sbin/cron`) if the project lives in a protected folder such as Documents or Desktop. Nothing in the log at all is the usual sign.
+- Cron doesn't run while the Mac sleeps, and doesn't catch up afterwards. A missed `daily-new` simply happens the next day.
+- `couldn't find node/npm` in the log: install Node with asdf, nvm or Homebrew, or add a `PATH=...` line with your Node folder at the top of your crontab.
 
 ## How it works
 
