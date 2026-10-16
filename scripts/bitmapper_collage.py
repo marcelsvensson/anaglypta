@@ -1,7 +1,7 @@
 """Builds <project>/collage.jpg: album covers in a grid around a centrepiece.
 
 The centrepiece is the pixel bitmap (run bitmapper.py first), with --cover (used by full) a random album cover,
-or with --latest (used by daily) the newest album's cover. An album in the middle doesn't get a grid cell as well.
+or with --latest (used by daily-new) the newest album's cover. An album in the middle doesn't get a grid cell as well.
 With --fill there's no centrepiece: the centre cells are filled with albums like the rest.
 Without --randomize the latest albums are used, oldest bottom right, filling right to left, bottom to top.
 """
@@ -9,11 +9,13 @@ import argparse
 import random
 import sys
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from common import ROOT, canvas_size, cell_xy, ensure_cover, load_cover, load_settings, read_albums, warn
 
 DEFAULT_CENTER = {"col": 4, "row": 2, "size": 5}
+# a small copy of the collage, saved next to it as collage_thumbnail.jpg (72 dpi), scaled to cover and cropped in the centre, never stretched
+THUMBNAIL_SIZE = (97, 68)
 
 
 def free_cells(col, row, center, skip):
@@ -73,7 +75,7 @@ def main():
 
     albums = read_albums(project)
     if not albums:
-        sys.exit(f"No albums found in {project}/ - run `npm run fetch` first")
+        sys.exit(f"No albums found in {project}/ - run `npm run full` first")
 
     # an album in the middle doesn't get a grid cell as well
     centre_album = albums[-1] if args.latest else random.choice(albums) if args.cover else None
@@ -103,6 +105,10 @@ def main():
     output = ROOT / project / "collage.jpg"
     canvas.save(output, quality=95)
     print(f"Saved {output.relative_to(ROOT)} ({drawn}/{len(chosen)} covers, {len(cells)} cells)")
+
+    thumbnail = ROOT / project / "collage_thumbnail.jpg"
+    ImageOps.fit(canvas, THUMBNAIL_SIZE, Image.Resampling.LANCZOS).save(thumbnail, quality=95, dpi=(72, 72))
+    print(f"Saved {thumbnail.relative_to(ROOT)} ({THUMBNAIL_SIZE[0]}x{THUMBNAIL_SIZE[1]})")
 
 
 if __name__ == "__main__":

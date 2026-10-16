@@ -91,6 +91,14 @@ class RenderTest(unittest.TestCase):
             x, y = common.cell_xy(c, r, 10, 10, 2)
             self.assertColour(self.colour_at(image, x + 5, y + 5), colour)
 
+    def test_collage_also_saves_a_thumbnail(self):
+        with redirect_stdout(io.StringIO()):
+            bitmapper.main()
+            bitmapper_collage.main()
+        with Image.open(self.root / "album" / "collage_thumbnail.jpg") as thumbnail:
+            self.assertEqual(thumbnail.size, (97, 68))
+            self.assertEqual(tuple(round(d) for d in thumbnail.info["dpi"]), (72, 72))
+
     def collage_with(self, *flags):
         """Runs the collage with flags, returns (centre colour, colours of the filled grid cells)."""
         with mock.patch.object(sys, "argv", ["test", *flags]), redirect_stdout(io.StringIO()):
@@ -140,6 +148,21 @@ class RenderTest(unittest.TestCase):
         centre, cells = self.collage_with("--fill")
         self.assertColour(centre, (200, 200, 0))
         self.assertEqual(len(cells), 11)
+
+    def test_collage_centrepiece_spans_several_cells(self):
+        # a 5x5 grid with a 3x3 centre, like the real 5x5 one: the cover must cover all 9 cells and the gaps between them
+        settings = {**SETTINGS, "collage": {**SETTINGS["collage"], "col": 5, "row": 5, "center": {"col": 1, "row": 1, "size": 3}}}
+        with mock.patch.object(bitmapper_collage, "load_settings", lambda provider: settings), \
+                mock.patch.object(sys, "argv", ["test", "--latest"]), redirect_stdout(io.StringIO()):
+            bitmapper_collage.main()
+        image = Image.open(self.root / "album" / "collage.jpg").convert("RGB")
+        x, y = common.cell_xy(1, 1, 10, 10, 2)
+        span = 3 * 10 + 2 * 2
+        for dx, dy in [(1, 1), (span // 2, span // 2), (11, 5), (span - 2, span - 2)]:  # corners, middle and a gap
+            self.assertColour(self.colour_at(image, x + dx, y + dy), COLOURS[2])
+        # the cell right of the centre is outside it
+        x, y = common.cell_xy(4, 1, 10, 10, 2)
+        self.assertColour(self.colour_at(image, x + 5, y + 5), (0, 0, 0))
 
     def test_collage_latest_and_cover_cant_be_combined(self):
         with mock.patch.object(sys, "argv", ["test", "--latest", "--cover"]), \

@@ -17,7 +17,7 @@ const cleanTargets = () => [
 
 const resetTargets = () => [
     ...filesIn(path.join(ROOT, project, "data"), (file) => file.endsWith(".md")),
-    ...filesIn(path.join(ROOT, project), (file) => file === "bitmap.jpg" || file === "collage.jpg"),
+    ...filesIn(path.join(ROOT, project), (file) => ["bitmap.jpg", "collage.jpg", "collage_thumbnail.jpg"].includes(file)),
     path.join(ROOT, "state.json"),
 ];
 
