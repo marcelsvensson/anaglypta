@@ -7,7 +7,7 @@
 Turn a Spotify playlist into wallpaper. Anaglypta reads the albums in a playlist you own and makes:
 
 - **a pixel bitmap**: every album cover shrunk to a 9×9 pixel tile, in a 10×10 grid that fills up one album at a time — challenge yourself or your unsuspecting colleagues to a game of "guess the album", heavily pixelated in the style of [@pappasparlor](https://www.instagram.com/pappasparlor/).
-- **a collage**: 101 album covers around a centrepiece (the pixel bitmap or a random cover), good as a desktop background or in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music.
+- **a collage**: 92 album covers around a big centrepiece (the pixel bitmap, a random cover or the newest album), or 117 without one, good as a desktop background or in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music.
 
 ## Requirements
 
@@ -71,6 +71,7 @@ Extra options can be passed after `--`:
 ```sh
 npm run collage -- --cover      # a random album cover in the middle instead of the bitmap
 npm run collage -- --latest     # the newest album in the middle
+npm run collage -- --fill       # no centrepiece, the middle is filled with albums too
 ```
 
 ## All commands
@@ -82,7 +83,7 @@ npm run collage -- --latest     # the newest album in the middle
 | `npm run auth` | Log in to Spotify (again) |
 | `npm run fetch` | Fetch new albums from the playlist into `album/data/` |
 | `npm run bitmap` | Draw `album/bitmap.jpg` |
-| `npm run collage` | Draw `album/collage.jpg` with random albums (`-- --cover` for a cover centrepiece) |
+| `npm run collage` | Draw `album/collage.jpg` with random albums (`-- --cover`, `-- --latest` or `-- --fill` for the centre) |
 | `npm run full` | fetch + bitmap + collage (cover centrepiece) |
 | `npm run daily` | fetch one new album + bitmap + collage (newest album centrepiece) |
 | `npm run clean` | Remove what can be rebuilt (the cover cache in `tmp/`) |

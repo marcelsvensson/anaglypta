@@ -122,6 +122,25 @@ class RenderTest(unittest.TestCase):
         self.assertEqual(len(cells), 2)
         self.assertNotInCells(COLOURS[0], cells)
 
+    def test_collage_fill_fills_the_centre_with_albums(self):
+        with redirect_stdout(io.StringIO()):
+            bitmapper.main()  # a bitmap exists, but --fill must not paste it
+        # the 4x3 grid has 12 cells with the centre (1, 1) included, 3 albums fill the bottom row from the right
+        centre, cells = self.collage_with("--fill")
+        self.assertColour(centre, (0, 0, 0))
+        image = Image.open(self.root / "album" / "collage.jpg").convert("RGB")
+        for (c, r), colour in zip([(3, 2), (2, 2), (1, 2)], COLOURS):
+            x, y = common.cell_xy(c, r, 10, 10, 2)
+            self.assertColour(self.colour_at(image, x + 5, y + 5), colour)
+
+    def test_collage_fill_fills_every_cell_when_there_are_enough_albums(self):
+        for i in range(3, 12):
+            self.write_album(self.root, f"2026-02-{i:02d}.md", f"album{i}", f"track{i}")
+            Image.new("RGB", (8, 8), (200, 200, 0)).save(self.root / "tmp" / "covers" / f"album{i}.jpeg")
+        centre, cells = self.collage_with("--fill")
+        self.assertColour(centre, (200, 200, 0))
+        self.assertEqual(len(cells), 11)
+
     def test_collage_latest_and_cover_cant_be_combined(self):
         with mock.patch.object(sys, "argv", ["test", "--latest", "--cover"]), \
                 mock.patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
