@@ -27,9 +27,10 @@ Turn a Spotify playlist into wallpaper. Anaglypta reads the albums in a playlist
    npm ci
    npm run setup
    npm run full
+   npm run collage
    ```
 
-`npm run setup` walks you through the rest: it sets up Python, creates `.env`, asks for your Spotify Client ID and playlist link, and logs you in to Spotify. You can run it again at any time to check that everything is in place.
+`npm run setup` walks you through the rest: it sets up Python, creates `.env`, asks for your Spotify Client ID and playlist link, and logs you in to Spotify. You can run it again at any time to check that everything is in place. `npm run full` fetches your playlist, `npm run collage` draws the images.
 
 Then look in `album/`: `bitmap.jpg` and `collage.jpg`.
 
@@ -56,22 +57,23 @@ Good to know:
 - New apps run in **development mode**: up to 5 Spotify users, and anyone other than you must be added under **User Management** in the app's settings.
 - **Apps created before 2026** can still use the older login with a client secret: set `CLIENT_SECRET` in `.env` instead of running `npm run auth`.
 
-## Three ways to use it
+## Ways to use it
 
 | Command | What it does | When |
 |---|---|---|
-| `npm run collage` | Remixes the collage: picks albums at random from the ones you already have. No Spotify needed. | You have your albums and just want a new background. |
-| `npm run full` | Fetches the whole playlist, then builds the bitmap and the collage in playlist order, with a random album cover as the centrepiece. | The first run, or to catch up after adding many albums. |
-| `npm run daily` | The day-by-day reveal: adds **one** new album (skipping albums you already have, further down the playlist if needed), updates the bitmap and puts the new album in the middle of the collage. | Once a day, to reveal one album at a time. |
+| `npm run full` | Fetches the whole playlist (up to `maxAlbums`). Draws nothing. | The first run, or to catch up after adding many albums. |
+| `npm run collage` | Draws the bitmap and a new random collage from the albums you already have. No Spotify needed. | Whenever you want a new background. |
+| `npm run daily-new` | The day-by-day reveal: adds **one** new album (skipping albums you already have, further down the playlist if needed), updates the bitmap, puts the new album in the middle of the collage and sends it to Google Meet (if set up). | Once a day, to reveal one album at a time. |
+| `npm run random-meet` | A new random collage as your Google Meet background. Needs `npm run setup:meet` first. | As often as you like, e.g. every hour from cron. |
 
 Every album appears once: if the playlist has several songs from the same album, the first one added wins.
 
-Extra options can be passed after `--`:
+`collage` and `random-meet` take an option for the middle of the collage, after `--`:
 
 ```sh
-npm run collage -- --cover      # a random album cover in the middle instead of the bitmap
-npm run collage -- --latest     # the newest album in the middle
-npm run collage -- --fill       # no centrepiece, the middle is filled with albums too
+npm run collage -- --cover          # a random album cover in the middle instead of the bitmap
+npm run collage -- --latest         # the newest album in the middle
+npm run random-meet -- --fill       # no centrepiece, the middle is filled with albums too
 ```
 
 ## All commands
@@ -80,14 +82,16 @@ npm run collage -- --fill       # no centrepiece, the middle is filled with albu
 |---|---|
 | `npm run setup` | Gets everything ready (safe to re-run) |
 | `npm run setup:python` | Only the Python part (`.venv` with Pillow) |
+| `npm run setup:meet` | Optional: set up the collage as your Google Meet background (macOS + Chrome) |
 | `npm run auth` | Log in to Spotify (again) |
-| `npm run fetch` | Fetch new albums from the playlist into `album/data/` |
-| `npm run bitmap` | Draw `album/bitmap.jpg` |
-| `npm run collage` | Draw `album/collage.jpg` with random albums (`-- --cover`, `-- --latest` or `-- --fill` for the centre) |
-| `npm run full` | fetch + bitmap + collage (cover centrepiece) |
-| `npm run daily` | fetch one new album + bitmap + collage (newest album centrepiece) |
+| `npm run full` | Fetch new albums from the playlist into `album/data/` (all of them, up to `maxAlbums`) |
+| `npm run bitmap` | Draw only `album/bitmap.jpg` |
+| `npm run collage` | bitmap + `album/collage.jpg` with random albums (`-- --cover`, `-- --latest` or `-- --fill` for the centre) |
+| `npm run daily-new` | fetch one new album + bitmap + collage (newest album centrepiece) + meet |
+| `npm run random-meet` | collage (same options) + meet, only when Google Meet is set up |
 | `npm run clean` | Remove what can be rebuilt (the cover cache in `tmp/`) |
 | `npm run reset` | Start over: also removes your fetched albums and images (asks first) |
+| `npm run meet` | Copy the collage into Google Meet (experimental, see below, `-- --dry-run` to check first) |
 | `npm test` | Run the tests (`test:node` and `test:python` separately) |
 
 To reinstall the Node packages, use `npm ci`.
@@ -105,31 +109,54 @@ Created by `npm run setup` from [`.example.env`](.example.env). Never commit it.
 | `CLIENT_SECRET` | optional | Only for apps created before 2026 (instead of `npm run auth`) |
 | `SPOTIFY_MARKET` | optional | Country code such as `SE`, for track availability |
 | `SPOTIFY_AUTH_PORT` | optional | Port for the login, default `8888` |
+| `GOOGLE_MEET_BLOB_PATH`, `GOOGLE_MEET_BLOB_PATH_THUMBNAIL` | optional | The two Chrome files for your Google Meet background, see below |
 
 ### `settings.json`: how things look
 
 | Setting | What |
 |---|---|
 | `spotify.project` | Folder for the album files and images (default `album`) |
-| `spotify.maxAlbums` | The most albums the folder will hold (default `200`). At the limit, `fetch`, `full` and `daily` add nothing more |
+| `spotify.maxAlbums` | The most albums the folder will hold (default `200`). At the limit, `full` and `daily-new` add nothing more |
 | `spotify.cover` | The pixel bitmap: `col` × `row` tiles, each cover shrunk to `width` × `height` pixels and enlarged `scale` times, with `gap` pixels between tiles |
 | `spotify.collage` | The collage grid, same keys as `cover`, plus `center` (top-left cell and size of the centrepiece, in cells) and `skip` (cells to leave empty, as `[col, row]`) |
 
 The bitmap holds `col × row` albums (100 by default). When you have more, it shows the latest 100, and `npm run collage` picks from all of them, up to `maxAlbums`.
 
+## Google Meet background (experimental)
+
+On a Mac with Chrome, `npm run meet` makes the collage your Google Meet background. It overwrites the two files Chrome stored when you uploaded a background in Meet: the large image with the collage, the thumbnail with `album/collage_thumbnail.jpg` (97×68). `daily-new` and `random-meet` do this as their last step.
+
+Set it up once, after your first `npm run full` and `npm run collage`:
+
+```sh
+npm run setup:meet
+```
+
+It walks you through uploading `album/collage.jpg` as a background in Google Meet, finds the two files Chrome creates for it, saves their paths in `.env` and copies the collage in. From then on, reload Meet after a `daily-new` or `random-meet` to see the new collage.
+
+This relies on Chrome internals that aren't documented: after a Chrome update, or if you upload the background again, run `npm run setup:meet` again. To set the paths by hand, upload a background and point `GOOGLE_MEET_BLOB_PATH` (the large file) and `GOOGLE_MEET_BLOB_PATH_THUMBNAIL` (the small one) at the two newest files under `~/Library/Application Support/Google/Chrome/Default/IndexedDB/https_meet.google.com_0.indexeddb.blob` (`ls -lt` helps). Leave both variables empty and the step is skipped.
+
 ## Run it every day
 
-With cron (macOS/Linux), `crontab -e`:
+With cron (macOS/Linux), `crontab -e`. One new album every morning:
 
 ```cron
-0 8 * * * cd /path/to/anaglypta && PATH=/path/to/node/bin:$PATH npm run daily >> daily.log 2>&1
+0 8 * * * cd /path/to/anaglypta && PATH=/path/to/node/bin:$PATH npm run daily-new >> daily.log 2>&1
 ```
+
+Or a new random Google Meet background every hour on weekdays (after `npm run setup:meet`), with a random cover in the middle:
+
+```cron
+0 9-17 * * 1-5 cd /path/to/anaglypta && PATH=/path/to/node/bin:$PATH npm run random-meet -- --cover >> meet.log 2>&1
+```
+
+Reload Meet (or start a new meeting) to see the new background.
 
 Cron doesn't load your shell profile, so give it the folder that contains `node` and `npm` (`dirname "$(which npm)"`). On macOS, cron may need **Full Disk Access** (System Settings → Privacy & Security) if the project lives in a protected folder such as Documents.
 
 ## How it works
 
-1. `npm run fetch` asks Spotify for the playlist's new entries and writes one Markdown file per album to `album/data/` (artist, album, cover URL, genres). The images end up in `album/` itself.
+1. `npm run full` (and `daily-new`) asks Spotify for the playlist's new entries and writes one Markdown file per album to `album/data/` (artist, album, cover URL, genres). The images end up in `album/` itself.
 2. `npm run bitmap` and `npm run collage` download each cover once into `tmp/covers/` and draw the images with Python/Pillow.
 3. `state.json` remembers how far into the playlist you've come.
 
@@ -146,11 +173,12 @@ Everything generated (`album/`, `tmp/`, `state.json`) is ignored by git. `npm ru
 | `INVALID_CLIENT: Invalid redirect URI` | The Redirect URI in the app must be exactly `http://127.0.0.1:8888/callback` (or your `SPOTIFY_AUTH_PORT`). |
 | `Port 8888 is busy` | Set `SPOTIFY_AUTH_PORT` in `.env` and add the matching Redirect URI to the app. |
 | `Python packages missing` | Run `npm run setup:python`. |
-| `No albums found` | Run `npm run fetch` (or `npm run full`) first. |
-| `No new albums in the playlist` | Not an error: every album in the playlist is already in the grid. Add one to the playlist for tomorrow's `daily`. |
+| `No albums found` | Run `npm run full` first. |
+| `No new albums in the playlist` | Not an error: every album in the playlist is already in the grid. Add one to the playlist for tomorrow's `daily-new`. |
 | `album/ already has 200 albums` | You've reached `maxAlbums` in `settings.json`. Raise it, or `npm run reset` to start over. |
-| `The playlist got shorter - checking it from the start` | Not an error: songs were removed, so `fetch` looks through the playlist again. Albums you already have are skipped. |
+| `The playlist got shorter - checking it from the start` | Not an error: songs were removed, so `full` / `daily-new` look through the playlist again. Albums you already have are skipped. |
 | `npm error Unknown cli flag` | Put `--` before the options: `npm run collage -- --cover`. |
+| `Google Meet isn't set up` | `random-meet` needs `npm run setup:meet` first (and again after a Chrome update or a new upload). |
 
 ## Testing
 

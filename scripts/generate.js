@@ -111,7 +111,7 @@ const collectNewAlbums = async ({ getPage, offset = 0, known, limit = Infinity, 
 // room left under maxAlbums (settings.json), counted in unique albums
 const freeSlots = (maxAlbums, known) => Math.max(0, maxAlbums - known.albumIds.size);
 
-// --limit <n>: the most new albums one run adds (daily uses 1), no --limit = all of them
+// --limit <n>: the most new albums one run adds (daily-new uses 1), no --limit = all of them
 const parseLimit = (argv) => {
     const index = argv.indexOf("--limit");
     if (index === -1) {
@@ -201,7 +201,7 @@ const main = async () => {
     fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
 
     if (!entries.length) {
-        console.log("No new albums in the playlist - add one and run daily again");
+        console.log("No new albums in the playlist - add one and run daily-new again");
     } else if (entries.length === free && free < limit) {
         console.log(`Stopped at ${maxAlbums} albums (maxAlbums in settings.json)`);
     }
