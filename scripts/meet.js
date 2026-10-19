@@ -1,24 +1,21 @@
-// npm run meet [-- --dry-run]: puts the collage and its thumbnail in as your Google Meet background, by overwriting the
+// npm run meet [-- -p <project>] [--dry-run]: puts the project's collage and its thumbnail in as your Google Meet background, by overwriting the
 // two blob files Chrome stored when you uploaded a background in Meet (GOOGLE_MEET_BLOB_PATH, GOOGLE_MEET_BLOB_PATH_THUMBNAIL
 // in .env, `npm run setup:meet` finds them). Skipped when neither is set.
-// npm run random-meet [-- --cover | --latest | --fill] (= --collage): draws a new random collage first, and refuses to run
+// npm run random-meet [-- -p <project>] [--cover | --latest | --fill] (= --collage): draws a new random collage first, and refuses to run
 // (before drawing anything) when Google Meet isn't set up.
 // Experimental: Chrome's IndexedDB files are undocumented and may change with a Chrome update or a new upload.
 const fs = require("node:fs");
-const os = require("node:os");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const ROOT = path.join(__dirname, "..");
-const { project } = require("../settings.json").spotify;
+const { ROOT, expandHome, getProject, parseProjectArgs, projectArgs } = require("./project");
 
 const KEYS = ["GOOGLE_MEET_BLOB_PATH", "GOOGLE_MEET_BLOB_PATH_THUMBNAIL"];
 
-const expandHome = (file) => (file === "~" || file.startsWith("~/") ? path.join(os.homedir(), file.slice(1)) : file);
-
-// returns [{ source, target }] for the two images, null when not configured at all, throws on a half-done setup.
-// the targets must be existing files (the blobs Chrome made), isFile is passed in so this stays testable
-const planCopies = (env, { isFile }) => {
+// returns [{ source, target }] for the two images in dir (the project's folder), null when not configured at all,
+// throws on a half-done setup. the targets must be existing files (the blobs Chrome made), isFile is passed in so this
+// stays testable
+const planCopies = (env, { isFile }, dir) => {
     if (!KEYS.some((key) => env[key])) {
         return null;
     }
@@ -35,7 +32,6 @@ const planCopies = (env, { isFile }) => {
         return value;
     };
 
-    const dir = path.join(ROOT, project);
     return [
         ["collage.jpg", blobFor("GOOGLE_MEET_BLOB_PATH")],
         ["collage_thumbnail.jpg", blobFor("GOOGLE_MEET_BLOB_PATH_THUMBNAIL")],
@@ -51,10 +47,12 @@ const python = (...args) => {
 };
 
 const main = () => {
+    const { source, project: name, rest } = parseProjectArgs(process.argv.slice(2));
+    const project = getProject({ source, project: name });
     require("dotenv").config({ quiet: true });
     const isFile = (file) => fs.statSync(file, { throwIfNoEntry: false })?.isFile() ?? false;
-    const copies = planCopies(process.env, { isFile });
-    const drawCollage = process.argv.includes("--collage");
+    const copies = planCopies(process.env, { isFile }, project.dir);
+    const drawCollage = rest.includes("--collage");
     if (!copies) {
         if (drawCollage) {
             throw new Error("not set up - run `npm run setup:meet` first");
@@ -65,16 +63,16 @@ const main = () => {
 
     // --collage (npm run random-meet): a new random collage first, the other options (--cover, --latest, --fill) are for it
     if (drawCollage) {
-        python("scripts/collage.py", "--randomize", ...process.argv.slice(2).filter((arg) => !["--collage", "--dry-run"].includes(arg)));
+        python("scripts/collage.py", "--randomize", ...projectArgs(project), ...rest.filter((arg) => !["--collage", "--dry-run"].includes(arg)));
     }
 
     for (const { source } of copies) {
         if (!fs.existsSync(source)) {
-            throw new Error(`${path.relative(ROOT, source)} is missing - run \`npm run collage\` first`);
+            throw new Error(`${path.relative(ROOT, source)} is missing - run \`npm run collage -- -p ${project.id}\` first`);
         }
     }
 
-    const dryRun = process.argv.includes("--dry-run");
+    const dryRun = rest.includes("--dry-run");
     for (const { source, target } of copies) {
         if (dryRun) {
             console.log(`Dry run - would copy ${path.relative(ROOT, source)} to ${target}`);

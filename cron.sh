@@ -1,7 +1,7 @@
 #!/bin/sh
 # Runs an npm script from cron (or anywhere): finds node by itself, so the cron line needs no cd or PATH.
 # usage: ./cron.sh <npm script> [options...]    e.g. ./cron.sh daily-new, ./cron.sh random-meet --latest
-# options are passed on after `--`, so they reach the script's last step (works for collage and random-meet)
+# options are passed on after `--`, e.g. ./cron.sh daily-new -p local/cats (every script takes -s/--source and -p/--project)
 
 if [ -z "$1" ]; then
     echo "usage: $0 <npm script> [options...]  e.g. $0 daily-new"

@@ -8,9 +8,9 @@
     "setup:python": "node ./scripts/setup.js --python",
     "setup:meet": "node ./scripts/setup.js --meet",
     "auth": "node ./scripts/auth.js",
-    "full": "node ./scripts/generate.js",
+    "full": "node ./scripts/fetch.js",
     "collage": "node ./scripts/python.js ./scripts/collage.py --randomize",
-    "daily-new": "node ./scripts/generate.js --limit 1 && node ./scripts/python.js ./scripts/collage.py --latest && npm run meet",
+    "daily-new": "node ./scripts/daily-new.js",
     "meet": "node ./scripts/meet.js",
     "random-meet": "node ./scripts/meet.js --collage",
     "clean": "node ./scripts/clean.js",
@@ -21,11 +21,13 @@
   },
   "keywords": [
     "spotify",
-    "background"
+    "collage",
+    "background",
+    "google meet"
   ],
   "author": "marcelsvensson",
   "license": "ISC",
-  "description": "generate a background grid from your spotify-playlist",
+  "description": "generate a background collage from a spotify playlist or a folder of images",
   "engines": {
     "node": ">=20"
   },

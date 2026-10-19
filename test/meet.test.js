@@ -19,8 +19,8 @@ test("planCopies wants both blob files", () => {
 });
 
 test("planCopies overwrites exactly the two blobs", () => {
-    const copies = planCopies(env, fakeFs);
-    assert.deepEqual(copies.map(({ source }) => path.basename(source)), ["collage.jpg", "collage_thumbnail.jpg"]);
+    const copies = planCopies(env, fakeFs, "/projects/local/cats");
+    assert.deepEqual(copies.map(({ source }) => source), ["/projects/local/cats/collage.jpg", "/projects/local/cats/collage_thumbnail.jpg"]);
     assert.deepEqual(copies.map(({ target }) => target), ["/meet/1/c", "/meet/1/d"]);
 });
 
