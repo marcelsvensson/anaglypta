@@ -1,6 +1,7 @@
 // npm run full [-- -p <project>] [--limit n]: fetches new items for a project from its source into
-// projects/<source>/<name>/items.json. --limit n: the most new items one run adds (daily-new uses 1), no --limit = all
-// of them, up to maxItems. A new source = a fetcher in scripts/sources/ plus a line in FETCHERS.
+// projects/<source>/<name>/items.json, then makes the square copies that are missing (cache.py), so the collage works
+// offline. --limit n: the most new items one run adds (daily-new uses 1), no --limit = all of them, up to maxItems.
+// A new source = a fetcher in scripts/sources/ plus a line in FETCHERS.
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -19,15 +20,17 @@ const parseLimit = (argv) => {
     return limit;
 };
 
-// runs a python fetcher through python.js (the .venv python), it takes the same flags
-const python = (script) => (project, { limit }) => {
-    const limitArgs = limit === Infinity ? [] : ["--limit", String(limit)];
-    const result = spawnSync(process.execPath, [path.join(__dirname, "python.js"), path.join(__dirname, script), ...projectArgs(project), ...limitArgs],
+// runs a python script for the project through python.js (the .venv python)
+const runPython = (script, project, args = []) => {
+    const result = spawnSync(process.execPath, [path.join(__dirname, "python.js"), path.join(__dirname, script), ...projectArgs(project), ...args],
         { cwd: ROOT, stdio: "inherit" });
     if (result.status !== 0) {
         throw new Error(`${script} failed`);
     }
 };
+
+// a python fetcher, it takes the same flags
+const python = (script) => (project, { limit }) => runPython(script, project, limit === Infinity ? [] : ["--limit", String(limit)]);
 
 const FETCHERS = {
     spotify: (project, options) => {
@@ -51,6 +54,7 @@ const main = async () => {
         throw new Error(`Can't fetch from ${project.source} yet`);
     }
     await fetcher(project, { limit });
+    runPython("cache.py", project);
 };
 
 if (require.main === module) {

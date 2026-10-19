@@ -101,7 +101,7 @@ All of them take `-p <project>` / `-s <source>` after `--`.
 | `npm run setup:python` | Only the Python part (`.venv` with Pillow and pillow-heif) |
 | `npm run setup:meet` | Optional: set up the collage as your Google Meet background (macOS + Chrome) |
 | `npm run auth` | Log in to Spotify (again) |
-| `npm run full` | Fetch new items into the project's `items.json` (all of them, up to `maxItems`, `-- --limit n` for at most n) |
+| `npm run full` | Fetch new items into the project's `items.json` and their square images into `images/` (all of them, up to `maxItems`, `-- --limit n` for at most n) |
 | `npm run collage` | Draw the project's `collage.jpg` from random images (`-- --cover`, `-- --latest` or `-- --fill` for the centre) |
 | `npm run daily-new` | fetch one new item + collage (newest item centrepiece) + meet |
 | `npm run random-meet` | collage (same options) + meet, only when Google Meet is set up |
@@ -203,7 +203,8 @@ Good to know on macOS:
 1. `npm run full` (and `daily-new`) asks the project's source for new items and adds them to `projects/<source>/<name>/items.json`, together with how far it has come (the position in the playlist, for Spotify).
    - `spotify`: one item per album (title, artist, cover URL), from the playlist's new entries.
    - `local`: one item per image in the folder. The square copies are made right away, so a broken file shows up as a warning (once) and is skipped.
-2. `npm run collage` makes a square copy of each image once (Spotify covers are downloaded for it) into `images/`, then draws the collage with Python/Pillow. Images are cropped to the centre, never stretched, and photos are turned upright.
+2. Then it makes a square copy of every new image in `images/` (Spotify covers are downloaded for it). Images are cropped to the centre, never stretched, and photos are turned upright. A failed download is tried again on the next run.
+3. `npm run collage` draws the collage from `images/` with Python/Pillow, so it works offline (good for a `random-meet` from cron on a laptop).
 
 Everything generated (`projects/`, `tmp/`) and `projects.json` are ignored by git. `npm run reset` takes a project back to a fresh start.
 
