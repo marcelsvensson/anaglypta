@@ -1,0 +1,75 @@
+{
+  "created_by": "someone",
+  "description": "Series worth a rewatch",
+  "favorite_count": 0,
+  "id": "8512345",
+  "iso_639_1": "en",
+  "item_count": 5,
+  "name": "My series",
+  "page": 1,
+  "poster_path": null,
+  "total_pages": 1,
+  "total_results": 5,
+  "items": [
+    {
+      "adult": false,
+      "backdrop_path": "/bd1.jpg",
+      "genre_ids": [18],
+      "id": 1396,
+      "media_type": "tv",
+      "name": "Breaking Bad",
+      "original_language": "en",
+      "original_name": "Breaking Bad",
+      "first_air_date": "2008-01-20",
+      "poster_path": "/ggFHVNu6YYI5L9pCfOacjizRGt.jpg"
+    },
+    {
+      "adult": false,
+      "backdrop_path": "/bd2.jpg",
+      "genre_ids": [16],
+      "id": 1429,
+      "media_type": "tv",
+      "name": "Attack on Titan",
+      "original_language": "ja",
+      "original_name": "進撃の巨人",
+      "first_air_date": "2013-04-07",
+      "poster_path": "/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg"
+    },
+    {
+      "adult": false,
+      "backdrop_path": null,
+      "id": 99999,
+      "media_type": "tv",
+      "name": "No Poster Yet",
+      "original_language": "sv",
+      "original_name": "Ingen affisch",
+      "first_air_date": "",
+      "poster_path": null
+    },
+    {
+      "adult": false,
+      "backdrop_path": "/bd3.jpg",
+      "genre_ids": [18],
+      "id": 496243,
+      "media_type": "movie",
+      "title": "Parasite",
+      "original_language": "ko",
+      "original_title": "기생충",
+      "release_date": "2019-05-30",
+      "poster_path": "/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg",
+      "video": false
+    },
+    {
+      "adult": false,
+      "backdrop_path": "/bd4.jpg",
+      "id": 1429,
+      "media_type": "movie",
+      "title": "Same Number, Other Type",
+      "original_language": "en",
+      "original_title": "Same Number, Other Type",
+      "release_date": "2001-01-01",
+      "poster_path": "/samenumber.jpg",
+      "video": false
+    }
+  ]
+}

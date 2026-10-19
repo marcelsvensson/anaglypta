@@ -38,6 +38,10 @@ const FETCHERS = {
         return require("./sources/spotify").fetchSpotify(project, { ...options, spotify: require("../api/spotify") });
     },
     local: python("sources/local.py"),
+    tmdb: (project, options) => {
+        require("dotenv").config({ quiet: true });
+        return require("./sources/tmdb").fetchTmdb(project, { ...options, tmdb: require("../api/tmdb") });
+    },
 };
 
 const main = async () => {

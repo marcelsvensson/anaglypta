@@ -5,5 +5,8 @@
   },
   "local": {
     "cats": { "path": "~/Pictures/cats", "collage": { "center": { "size": 3 } } }
+  },
+  "tmdb": {
+    "series": { "list": "https://www.themoviedb.org/list/8512345" }
   }
 }

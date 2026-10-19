@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 USER_AGENT = "anaglypta/1.0"
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 PLAYLIST = re.compile(r"playlist[/:]([A-Za-z0-9]{22})(?![A-Za-z0-9])")
+TMDB_LIST = re.compile(r"list/(\d+)")
 
 
 class Progress:
@@ -90,6 +91,12 @@ def parse_playlist_id(text):
     return match.group(1) if match else None
 
 
+def parse_list_id(text):
+    text = str(text or "").strip()
+    match = TMDB_LIST.search(text) or re.fullmatch(r"(\d+)", text)
+    return match.group(1) if match else None
+
+
 def deep_merge(*layers):
     """Dicts merge key by key (collage.center too), anything else (numbers, lists like skip) is replaced."""
     merged = {}
@@ -148,6 +155,8 @@ def resolve_project(settings, projects, source=None, project=None, root=ROOT):
     resolved = {**merged, "source": source, "name": project, "id": f"{source}/{project}", "folder": folder, "dir": Path(root) / folder}
     if source == "spotify":
         resolved["playlistId"] = parse_playlist_id(merged.get("playlist"))
+    if source == "tmdb":
+        resolved["listId"] = parse_list_id(merged.get("list"))
     if source == "local" and merged.get("path"):
         resolved["path"] = str(Path(merged["path"]).expanduser())
     return resolved

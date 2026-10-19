@@ -581,7 +581,8 @@ const main = async () => {
     };
 
     const add = async () => {
-        const source = await askSource(input, sources);
+        // only the sources setup knows how to add (tmdb: add it to projects.json by hand for now)
+        const source = await askSource(input, sources.filter((name) => ["spotify", "local"].includes(name)));
         if (!source) {
             return;
         }

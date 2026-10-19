@@ -6,7 +6,7 @@
       "imageSize": 640,
       "collage": { "col": 13, "row": 9, "gap": 8, "center": { "col": 4, "row": 2, "size": 5 }, "skip": [[12, 8]] }
     },
-    "sources": { "spotify": {}, "local": { "maxItems": 100 } }
+    "sources": { "spotify": {}, "local": { "maxItems": 100 }, "tmdb": {} }
   },
   "projects": {
     "default": "local/cats",
@@ -18,6 +18,11 @@
       "cats": { "path": "/pics/cats", "collage": { "center": { "size": 3 } } },
       "dogs": { "path": "/pics/dogs", "maxItems": 30 },
       "Bad_Name": { "path": "/pics/bad" }
+    },
+    "tmdb": {
+      "series": { "list": "https://www.themoviedb.org/list/8512345-my-series?view=grid" },
+      "films": { "list": "42" },
+      "broken": { "list": "https://www.themoviedb.org/u/someone/lists" }
     }
   },
   "cases": [
@@ -48,6 +53,9 @@
     { "flags": { "project": "nope" }, "error": "Unknown project" },
     { "flags": { "source": "instagram" }, "error": "Unknown source" },
     { "flags": { "source": "local", "project": "spotify/album" }, "error": "doesn't match" },
-    { "flags": { "project": "Bad_Name" }, "error": "lowercase letters" }
+    { "flags": { "project": "Bad_Name" }, "error": "lowercase letters" },
+    { "flags": { "project": "series" }, "expected": { "source": "tmdb", "name": "series", "listId": "8512345", "folder": "projects/tmdb/series" } },
+    { "flags": { "project": "tmdb/films" }, "expected": { "listId": "42" } },
+    { "flags": { "project": "broken" }, "expected": { "source": "tmdb", "listId": null } }
   ]
 }

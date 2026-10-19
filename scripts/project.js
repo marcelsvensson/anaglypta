@@ -19,6 +19,13 @@ const parsePlaylistId = (input) => {
     return match ? match[1] : null;
 };
 
+// "https://www.themoviedb.org/list/8512345-my-series?..." or "8512345" -> "8512345", anything else -> null
+const parseListId = (input) => {
+    const text = String(input ?? "").trim();
+    const match = text.match(/list\/(\d+)/) || text.match(/^(\d+)$/);
+    return match ? match[1] : null;
+};
+
 // "Chill Vibes 🌊" -> "chill-vibes", "Blåbär & Ö" -> "blabar-o", a project name that works as a folder name
 const toKebab = (text) => String(text ?? "")
     .normalize("NFKD")
@@ -106,6 +113,9 @@ const resolveProject = (settings, projects, { source, project } = {}, root = ROO
     if (source === "spotify") {
         resolved.playlistId = parsePlaylistId(merged.playlist);
     }
+    if (source === "tmdb") {
+        resolved.listId = parseListId(merged.list);
+    }
     if (source === "local" && merged.path) {
         resolved.path = expandHome(merged.path);
     }
@@ -156,6 +166,7 @@ module.exports = {
     NAME,
     expandHome,
     parsePlaylistId,
+    parseListId,
     toKebab,
     deepMerge,
     readSettings,

@@ -11,6 +11,7 @@
   },
   "sources": {
     "spotify": {},
-    "local": {}
+    "local": {},
+    "tmdb": {}
   }
 }
