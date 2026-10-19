@@ -1,10 +1,11 @@
 """The local source: images from a folder on this computer -> projects/local/<name>/items.json + square copies in images/.
 
 Reads the images in the project's folder - only that folder, never its subfolders (a path like ~ would otherwise
-walk your whole home folder) - hidden files skipped. New images are
-added oldest first (the EXIF date taken, else the file's modification time), up to maxItems (--limit n: at most n per
-run). Images that are gone (or changed, they come back as new) are dropped. The square copies are made right away,
-so broken files show up now and not in the collage - once: state.unreadable remembers them until they change.
+walk your whole home folder) - hidden files skipped. The project holds the newest maxItems images, by the file's date
+(so nothing has to be opened to pick them): new ones are added (--limit n: at most n per run), the oldest are pushed
+out to make room. Images that are gone (or changed, they come back as new) are dropped too. The square copies are made
+right away, so broken files show up now and not in the collage - once: state.unreadable remembers them until they
+change.
 
 --count <folder>: prints {"images": n, "others": n} for `npm run setup`.
 """
@@ -19,7 +20,7 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from common import HEIF, add_project_args, ensure_image, image_path, load_project, read_data, warn, write_data  # noqa: E402
+from common import HEIF, Progress, add_project_args, ensure_image, image_path, load_project, read_data, warn, write_data  # noqa: E402
 
 EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif"}
 EXIF_IFD = 0x8769
@@ -40,9 +41,9 @@ def scan(folder):
     return sorted(images), others
 
 
-def item_id(path):
+def item_id(path, stat=None):
     """The same file gives the same id, an edited (or replaced) file a new one, so its square copy is made again."""
-    stat = path.stat()
+    stat = stat or path.stat()
     return hashlib.sha1(f"{path.resolve()}\0{stat.st_size}\0{stat.st_mtime_ns}".encode()).hexdigest()[:16]
 
 
@@ -67,67 +68,88 @@ def fetch(project, limit=None):
 
     data = read_data(project)
     files, others = scan(folder)
-    current = {item_id(path): path for path in files}
+    stats = {path: path.stat() for path in files}
+    ids = {path: item_id(path, stats[path]) for path in files}
+    newest_first = sorted(files, key=lambda path: (stats[path].st_mtime_ns, path.name), reverse=True)
 
-    kept = [item for item in data["items"] if item["id"] in current]
-    dropped = [item for item in data["items"] if item["id"] not in current]
-    for item in dropped:
-        image_path(project, item).unlink(missing_ok=True)
-
-    known = {item["id"] for item in kept}
+    known = {item["id"] for item in data["items"]}
     # files that couldn't be read before are skipped quietly (an edited file gets a new id and is tried again)
-    unreadable = {id_ for id_ in data["state"].get("unreadable", []) if id_ in current}
-    free = max(0, project.get("maxItems", 200) - len(kept))
-    wanted = min(free, limit) if limit else free
-    skipped = 0
+    unreadable = set(ids.values()) & set(data["state"].get("unreadable", []))
+    max_items = project.get("maxItems", 200)
 
-    def skip(id_, path, error):
-        nonlocal skipped
-        hint = " (HEIC needs `npm run setup:python`)" if not HEIF and path.suffix.lower() in (".heic", ".heif") else ""
-        warn(f"Skipped {path.name}: {error}{hint}")
-        unreadable.add(id_)
-        skipped += 1
+    def fits(kept, new):
+        return kept + new < max_items and (not limit or new < limit)
 
-    candidates = []
-    if wanted:
-        for id_, path in current.items():
-            if id_ in known or id_ in unreadable:
-                continue
-            try:
-                with Image.open(path) as image:
-                    candidates.append((date_taken(image, path), str(path), id_))
-            except Exception as error:  # not an image after all, or a format Pillow can't read
-                skip(id_, path, error)
-
-    added = []
-    for taken, path, id_ in sorted(candidates):
-        if len(added) >= wanted:
+    # the newest max_items files make the project, at most `limit` of them new this run. First only counted (for the
+    # progress line), then walked again making the copies - a file that fails frees its place for the next one
+    kept_count = new_count = 0
+    for path in newest_first:
+        if kept_count + new_count >= max_items:
             break
-        path = Path(path)
+        if ids[path] in known:
+            kept_count += 1
+        elif ids[path] not in unreadable and fits(kept_count, new_count):
+            new_count += 1
+
+    if len(files) > max_items and new_count:
+        print(f"{folder} has {len(files)} images, {project['id']} holds the newest {max_items} (maxItems)")
+
+    keep, new_items = set(), []
+    skipped = 0
+    handled = Progress(new_count)
+    for path in newest_first:
+        if len(keep) + len(new_items) >= max_items:
+            break
+        id_ = ids[path]
+        if id_ in known:
+            keep.add(id_)
+            continue
+        if id_ in unreadable or not fits(len(keep), len(new_items)):
+            continue
+        handled.step()
+        handled.total = max(handled.total, handled.count)
+        try:
+            with Image.open(path) as image:
+                taken = date_taken(image, path)
+        except Exception as error:  # not an image after all, or a format Pillow can't read
+            hint = " (HEIC needs `npm run setup:python`)" if not HEIF and path.suffix.lower() in (".heic", ".heif") else ""
+            warn(f"Skipped {path.name}: {error}{hint}")
+            taken = None
         item = {"id": id_, "title": path.stem, "subtitle": folder.name, "addedAt": taken, "source": str(path)}
-        if ensure_image(project, item) is None:
+        # ensure_image warns itself when the copy can't be made
+        if taken is None or ensure_image(project, item) is None:
             unreadable.add(id_)
             skipped += 1
             continue
-        added.append(item)
-        print(f"Added {path.name}")
+        new_items.append(item)
+    handled.done()
+    # the oldest of the new ones first, so the newest is the last item (the centrepiece of --latest)
+    added = new_items[::-1]
+    if len(added) == 1:
+        print(f"Added {Path(added[0]['source']).name}")
 
-    data["items"] = kept + added
+    present = set(ids.values())
+    gone = [item for item in data["items"] if item["id"] not in present]
+    pushed = [item for item in data["items"] if item["id"] in present and item["id"] not in keep]
+    for item in gone + pushed:
+        image_path(project, item).unlink(missing_ok=True)
+
+    data["items"] = [item for item in data["items"] if item["id"] in keep] + added
     data["state"] = {**data["state"], "path": str(folder), "unreadable": sorted(unreadable)}
     if added:
         data["state"]["lastFetched"] = date.today().isoformat()
     write_data(project, data)
 
-    if dropped:
-        print(f"Dropped {len(dropped)} image(s) that are gone from {folder} (or changed, they're added again)")
+    if gone:
+        print(f"Dropped {len(gone)} image(s) that are gone from {folder} (or changed, they're added again)")
+    if pushed:
+        print(f"Pushed out the {len(pushed)} oldest image(s) to make room for newer ones (maxItems)")
     if others:
         print(f"Ignored {others} file(s) that aren't images")
-    if not free:
-        print(f"{project['id']} already has {len(kept)} images (maxItems) - nothing added")
-    elif not added:
+    if not added:
         print(f"No new images in {folder}")
     print(f"{len(added)} new image(s), {len(data['items'])} images in {project['id']}")
-    return len(added), len(dropped), skipped
+    return len(added), len(gone) + len(pushed), skipped
 
 
 def main():

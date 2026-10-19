@@ -10,7 +10,7 @@ import tempfile  # noqa: E402
 
 from PIL import Image  # noqa: E402
 
-from common import canvas_size, cell_xy, ensure_image, image_path, square  # noqa: E402
+from common import Progress, canvas_size, cell_xy, ensure_image, image_path, square  # noqa: E402
 
 RED, BLUE = (255, 0, 0), (0, 0, 255)
 
@@ -49,6 +49,36 @@ class SquareTest(unittest.TestCase):
     def test_any_mode_becomes_rgb(self):
         self.assertEqual(square(Image.new("RGBA", (5, 9)), 4).mode, "RGB")
         self.assertEqual(square(Image.new("P", (9, 5)), 4).mode, "RGB")
+
+
+class FakeTerminal(io.StringIO):
+    def isatty(self):
+        return True
+
+
+class ProgressTest(unittest.TestCase):
+    def test_a_terminal_gets_one_line_that_updates_itself(self):
+        stream = FakeTerminal()
+        progress = Progress(3, stream=stream)
+        for _ in range(3):
+            progress.step()
+        progress.done()
+        self.assertEqual(stream.getvalue().count("\n"), 1)
+        self.assertIn("\r2 / 3 images handled", stream.getvalue())
+        self.assertTrue(stream.getvalue().endswith("3 / 3 images handled\x1b[K\n"))
+
+    def test_a_log_only_gets_the_final_count(self):
+        stream = io.StringIO()
+        progress = Progress(2, "images checked", stream=stream)
+        progress.step()
+        progress.step()
+        progress.done()
+        self.assertEqual(stream.getvalue(), "2 / 2 images checked\n")
+
+    def test_nothing_to_do_prints_nothing(self):
+        stream = FakeTerminal()
+        Progress(0, stream=stream).done()
+        self.assertEqual(stream.getvalue(), "")
 
 
 class EnsureImageTest(unittest.TestCase):

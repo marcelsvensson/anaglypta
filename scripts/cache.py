@@ -5,7 +5,7 @@ usage: python scripts/cache.py [-s <source>] [-p <project>]
 """
 import argparse
 
-from common import add_project_args, ensure_image, image_path, load_project, read_items, warn
+from common import Progress, add_project_args, ensure_image, image_path, load_project, read_items, warn
 
 # this many failures in a row before anything worked: probably offline, the rest would only fail slowly too
 GIVE_UP_AFTER = 3
@@ -14,15 +14,20 @@ GIVE_UP_AFTER = 3
 def cache(project):
     """Returns (made, failed, missing) - missing counts the items it didn't get to after giving up."""
     missing = [item for item in read_items(project) if not image_path(project, item).exists()]
+    progress = Progress(len(missing))
     made = failed = 0
-    for i, item in enumerate(missing):
-        if ensure_image(project, item):
-            made += 1
-            continue
-        failed += 1
-        if not made and failed >= GIVE_UP_AFTER:
-            return made, failed, len(missing) - i - 1
-    return made, failed, 0
+    try:
+        for i, item in enumerate(missing):
+            progress.step()
+            if ensure_image(project, item):
+                made += 1
+                continue
+            failed += 1
+            if not made and failed >= GIVE_UP_AFTER:
+                return made, failed, len(missing) - i - 1
+        return made, failed, 0
+    finally:
+        progress.done()
 
 
 def main():

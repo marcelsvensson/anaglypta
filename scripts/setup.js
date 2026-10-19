@@ -468,6 +468,10 @@ const askLocalProject = async (input, projects) => {
         warn(`No images in ${tilde(folder)} yet - add some before \`npm run full\``);
     } else if (count) {
         ok(`${count.images} images${count.others ? ` (and ${count.others} other files, ignored)` : ""}`);
+        const maxItems = readSettings().defaults?.maxItems ?? 200;
+        if (count.images > maxItems) {
+            warn(`Only the newest ${maxItems} are used (maxItems in settings.json, or per project in projects.json)`);
+        }
     }
     const name = await askProjectName(input, "local", projects, toKebab(path.basename(folder)));
     return name && { name, entry: { path: tilde(folder) } };

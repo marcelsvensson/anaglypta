@@ -81,7 +81,7 @@ npm run collage -- -p local/cats    # the same, with its source
 npm run daily-new -- -s spotify     # the default spotify project
 ```
 
-Spotify: every album appears once, if the playlist has several songs from the same album the first one added wins. Local: new photos are added oldest first (the date the photo was taken, else the file's date). Photos you delete from the folder are dropped, edited ones come back as new.
+Spotify: every album appears once, if the playlist has several songs from the same album the first one added wins. Local: the project holds the newest `maxItems` images in the folder, by the file's date. Drop new photos in and the next `full` adds them, pushing the oldest out. Photos you delete from the folder are dropped, edited ones come back as new.
 
 `collage` and `random-meet` take an option for the middle of the collage, after `--`:
 

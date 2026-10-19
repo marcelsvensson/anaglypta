@@ -23,7 +23,47 @@ NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 PLAYLIST = re.compile(r"playlist[/:]([A-Za-z0-9]{22})(?![A-Za-z0-9])")
 
 
+class Progress:
+    """"12 / 200 images handled" on one line that updates itself, in a terminal. Elsewhere (cron logs) only the last
+    count is written, by done()."""
+
+    showing = None  # the Progress whose line is on screen, warn() clears it first
+
+    def __init__(self, total, label="images handled", stream=None):
+        self.total, self.label, self.count = total, label, 0
+        self.stream = stream or sys.stdout
+        self.live = self.stream.isatty()
+
+    def text(self):
+        return f"{self.count} / {self.total} {self.label}"
+
+    def step(self):
+        self.count += 1
+        if self.live:
+            self.stream.write(f"\r{self.text()}\033[K")
+            self.stream.flush()
+            Progress.showing = self
+
+    def clear(self):
+        if self.live:
+            self.stream.write("\r\033[K")
+            self.stream.flush()
+
+    def done(self):
+        """Leaves the final count on its own line (nothing when there was nothing to do)."""
+        if Progress.showing is self:
+            Progress.showing = None
+        if self.count:
+            if self.live:
+                self.stream.write(f"\r{self.text()}\033[K\n")
+            else:
+                self.stream.write(f"{self.text()}\n")
+            self.stream.flush()
+
+
 def warn(message):
+    if Progress.showing:
+        Progress.showing.clear()  # the warning gets its own line, the count comes back with the next step
     sys.stdout.flush()  # keep warnings in order with the regular output
     print(f"⚠️  {message}", file=sys.stderr)
 
