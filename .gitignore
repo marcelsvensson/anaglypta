@@ -4,18 +4,19 @@
 !.example.env
 .spotify-token*.json
 
-# runtime state (written by scripts/generate.js)
-state.json
+# your projects (written by npm run setup, see projects.example.json)
+projects.json
 
 # dependencies
 node_modules/
 .venv/
 __pycache__/
 
-# generated output
+# generated output: per project items.json, images/ and the collages
+projects/*
+!projects/.gitkeep
 tmp/*
 !tmp/.gitkeep
-album/
 # built by the website on feature/website, stays on disk when switching branches
 _site/
 

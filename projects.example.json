@@ -1,0 +1,9 @@
+{
+  "default": "spotify/album",
+  "spotify": {
+    "album": { "playlist": "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M" }
+  },
+  "local": {
+    "cats": { "path": "~/Pictures/cats", "collage": { "center": { "size": 3 } } }
+  }
+}
