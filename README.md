@@ -105,7 +105,7 @@ All of them take `-p <project>` / `-s <source>` after `--`.
 | `npm run collage` | Draw the project's `collage.jpg` from random images (`-- --cover`, `-- --latest` or `-- --fill` for the centre) |
 | `npm run daily-new` | fetch one new item + collage (newest item centrepiece) + meet |
 | `npm run random-meet` | collage (same options) + meet, only when Google Meet is set up |
-| `npm run clean` | Remove what can be rebuilt (every project's `images/`, `tmp/`) |
+| `npm run clean` | Remove what can be rebuilt (every project's `images/`) |
 | `npm run reset` | Start a project over: removes its folder, so everything is fetched again (asks first) |
 | `npm run meet` | Copy the project's collage into Google Meet (experimental, see below, `-- --dry-run` to check first) |
 | `npm test` | Run the tests (`test:node` and `test:python` separately) |
@@ -206,7 +206,7 @@ Good to know on macOS:
 2. Then it makes a square copy of every new image in `images/` (Spotify covers are downloaded for it). Images are cropped to the centre, never stretched, and photos are turned upright. A failed download is tried again on the next run.
 3. `npm run collage` draws the collage from `images/` with Python/Pillow, so it works offline (good for a `random-meet` from cron on a laptop).
 
-Everything generated (`projects/`, `tmp/`) and `projects.json` are ignored by git. `npm run reset` takes a project back to a fresh start.
+Everything generated (`projects/`) and `projects.json` are ignored by git. `npm run reset` takes a project back to a fresh start.
 
 ## Troubleshooting
 

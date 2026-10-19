@@ -89,11 +89,10 @@ test("clean removes every project's image cache, nothing else in projects/", () 
     const { cleanTargets } = require("../scripts/clean");
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
     try {
-        for (const dir of ["projects/local/cats/images", "projects/spotify/album/images", "tmp"]) {
+        for (const dir of ["projects/local/cats/images", "projects/spotify/album/images"]) {
             fs.mkdirSync(path.join(root, dir), { recursive: true });
         }
         fs.writeFileSync(path.join(root, "projects", ".gitkeep"), "");
-        fs.writeFileSync(path.join(root, "tmp", ".gitkeep"), "");
         const targets = cleanTargets(root).map((target) => path.relative(root, target)).filter((target) => fs.existsSync(path.join(root, target)));
         assert.deepEqual(targets.sort(), ["projects/local/cats/images", "projects/spotify/album/images"]);
     } finally {

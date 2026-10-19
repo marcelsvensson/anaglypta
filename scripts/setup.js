@@ -11,7 +11,8 @@ const { spawnSync } = require("node:child_process");
 
 const { VENV_PYTHON, hasPackages } = require("./python");
 const {
-    expandHome, parsePlaylistId, toKebab, readSettings, readProjects, writeProjects, listProjects, getProject, parseProjectArgs,
+    expandHome, parsePlaylistId, toKebab, readSettings, readProjects, writeProjects, listProjects, getProject, resolveProject,
+    parseProjectArgs,
 } = require("./project");
 
 const ROOT = path.join(__dirname, "..");
@@ -91,19 +92,26 @@ const removeProject = (projects, source, name) => {
     return next;
 };
 
-// the crontab lines (`crontab -l`) that run cron.sh for this project: ones naming it (-p name, -p source/name),
-// and for the default project the ones without -p (with no -s, or -s for its source)
-const cronLinesFor = (crontab, { source, name }, isDefault) => {
-    const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const names = new RegExp(`(^|[\\s/=])${escape(name)}(?=\\s|$)`);
-    const anyProject = /(^|\s)(-p|--project)([\s=]|$)/;
-    const sourceFlag = /(^|\s)(?:-s|--source)[\s=](\S+)/;
-    return String(crontab ?? "").split("\n")
-        .map((line) => line.trim())
-        .filter((line) => line && !line.startsWith("#") && /cron\.sh(\s|$)/.test(line))
-        .filter((line) => names.test(line)
-            || (isDefault && !anyProject.test(line) && [undefined, source].includes(line.match(sourceFlag)?.[2])));
-};
+// the cron.sh lines in a crontab (`crontab -l`) that run project id. before/after resolve a line's own -s/-p flags to a
+// project id (null = an error) with the project still there and without it. -> [{ line, named, to }]: named = it has -p
+// (it fails once the project is gone), else it ran id as a default and runs `to` from now on (null: fails too)
+const cronLinesFor = (crontab, id, before, after) => String(crontab ?? "").split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#") && /cron\.sh(\s|$)/.test(line))
+    .flatMap((line) => {
+        // the options after `cron.sh <script>`, up to a redirect or the next command
+        const options = line.split(/cron\.sh\s+\S+/)[1]?.split(/\s(?:>|>>|2>|2>&1|&&|\||;)/)[0] ?? "";
+        let flags;
+        try {
+            flags = parseProjectArgs(options.split(/\s+/).filter(Boolean));
+        } catch {
+            return [];
+        }
+        if (before(flags) !== id) {
+            return [];
+        }
+        return [{ line, named: Boolean(flags.project), to: flags.project ? null : after(flags) }];
+    });
 
 // the two files Chrome writes when you upload a Meet background: of the files changed since `since`, the largest is the
 // image and the smallest its thumbnail. files = [{ path, size, mtimeMs }], returns { image, thumbnail, count } or null
@@ -585,12 +593,28 @@ const main = async () => {
         const project = getProject({ project: id });
         const isDefault = id === defaultId();
         const crontab = readCrontab();
-        const lines = cronLinesFor(crontab, project, isDefault);
-        if (lines.length) {
-            warn(`Your crontab (crontab -l) runs ${id}${isDefault ? ", it's the default project" : ""}:`);
-            console.log(lines.map((line) => `      ${line}`).join("\n"));
-            console.log("    Remove or change those lines first (`crontab -e`, in another terminal), or they fail from now on.");
-        } else if (crontab !== null) {
+        const resolveWith = (projects) => ({ source, project: name }) => {
+            try {
+                return resolveProject(settings, projects, { source, project: name }).id;
+            } catch {
+                return null;
+            }
+        };
+        const current = readProjects();
+        const lines = cronLinesFor(crontab, id, resolveWith(current), resolveWith(removeProject(current, project.source, project.name)));
+        const show = (list) => console.log(list.map(({ line }) => `      ${line}`).join("\n"));
+        const failing = lines.filter(({ to }) => !to);
+        const moving = lines.filter(({ to }) => to);
+        if (failing.length) {
+            warn(`Your crontab (crontab -l) runs ${id}, these lines fail once it's gone:`);
+            show(failing);
+            console.log("    Remove or change them first (`crontab -e`, in another terminal).");
+        }
+        for (const to of new Set(moving.map((entry) => entry.to))) {
+            ok(`These crontab lines don't name a project and run ${id} now - they keep running, with ${to} from now on:`);
+            show(moving.filter((entry) => entry.to === to));
+        }
+        if (!lines.length && crontab !== null) {
             ok(`Nothing in your crontab (crontab -l) runs ${id}`);
         }
         console.log(`\n  This deletes ${project.folder}/ (what was fetched, the images and collages) and removes it from projects.json.`);

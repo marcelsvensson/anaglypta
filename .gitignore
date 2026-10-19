@@ -15,8 +15,6 @@ __pycache__/
 # generated output: per project items.json, images/ and the collages
 projects/*
 !projects/.gitkeep
-tmp/*
-!tmp/.gitkeep
 # built by the website on feature/website, stays on disk when switching branches
 _site/
 
