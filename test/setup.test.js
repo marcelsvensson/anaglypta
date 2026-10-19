@@ -1,7 +1,10 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { parsePlaylistId, isClientId, parseEnv, setEnvValue, pickBlobs } = require("../scripts/setup");
+const os = require("node:os");
+const path = require("node:path");
+
+const { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, addProject, pickBlobs } = require("../scripts/setup");
 
 const ID = "37i9dQZF1DXcBWIGoYBM5M";
 
@@ -51,4 +54,22 @@ test("pickBlobs finds the uploaded image and thumbnail among the files changed s
 test("pickBlobs needs two new files", () => {
     assert.equal(pickBlobs([{ path: "/new/c", size: 1, mtimeMs: 2000 }, { path: "/old/a", size: 1, mtimeMs: 100 }], 1000), null);
     assert.equal(pickBlobs([], 1000), null);
+});
+
+test("parseFolderInput reads typed, quoted and dragged folders", () => {
+    assert.equal(parseFolderInput("  /My Photos "), "/My Photos");
+    assert.equal(parseFolderInput("'/My Photos'"), "/My Photos");
+    assert.equal(parseFolderInput("\"/My Photos\""), "/My Photos");
+    assert.equal(parseFolderInput("/My\\ Photos/Cats\\ \\(2024\\)"), "/My Photos/Cats (2024)");
+    assert.equal(parseFolderInput("~/Pictures"), path.join(os.homedir(), "Pictures"));
+});
+
+test("addProject adds or replaces a project and sets the default when there's none", () => {
+    const first = addProject({}, "local", "cats", { path: "~/cats" });
+    assert.deepEqual(first, { local: { cats: { path: "~/cats" } }, default: "local/cats" });
+    const second = addProject(first, "spotify", "album", { playlist: "x" });
+    assert.equal(second.default, "local/cats");
+    assert.deepEqual(second.local, first.local);
+    assert.equal(addProject(second, "spotify", "chill", {}, { makeDefault: true }).default, "spotify/chill");
+    assert.deepEqual(addProject(second, "local", "cats", { path: "~/new" }).local, { cats: { path: "~/new" } });
 });

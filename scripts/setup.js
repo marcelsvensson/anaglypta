@@ -1,5 +1,7 @@
-// npm run setup: gets a fresh clone ready to run - safe to re-run, every step skips what's already done
+// npm run setup: gets a fresh clone ready to run and adds projects (a spotify playlist or a local folder) to projects.json
+// - safe to re-run, every step skips what's already done
 // npm run setup:python (--python): only the python part
+// npm run setup:meet (--meet) [-- -p <project>]: the Google Meet background
 // uses node built-ins only, so it works before `npm ci`
 const fs = require("node:fs");
 const os = require("node:os");
@@ -7,8 +9,10 @@ const path = require("node:path");
 const readline = require("node:readline");
 const { spawnSync } = require("node:child_process");
 
-const { VENV_PYTHON, hasPillow } = require("./python");
-const { expandHome } = require("./meet");
+const { VENV_PYTHON, hasPackages } = require("./python");
+const {
+    expandHome, parsePlaylistId, toKebab, readSettings, readProjects, writeProjects, listProjects, getProject, parseProjectArgs,
+} = require("./project");
 
 const ROOT = path.join(__dirname, "..");
 const ENV_PATH = path.join(ROOT, ".env");
@@ -23,13 +27,6 @@ const step = (message) => console.log(`→ ${message}`);
 const warn = (message) => console.log(`⚠️  ${message}`);
 
 // --- pure helpers (exported for tests) ---
-
-// "https://open.spotify.com/playlist/<id>?si=..", "spotify:playlist:<id>" or "<id>" -> "<id>", anything else -> null
-const parsePlaylistId = (input) => {
-    const text = String(input ?? "").trim();
-    const match = text.match(/playlist[/:]([A-Za-z0-9]{22})(?![A-Za-z0-9])/) || text.match(/^([A-Za-z0-9]{22})$/);
-    return match ? match[1] : null;
-};
 
 const isClientId = (input) => /^[0-9a-f]{32}$/i.test(String(input ?? "").trim());
 
@@ -52,6 +49,20 @@ const setEnvValue = (text, key, value) => {
         return text.replace(line, `${key}=${value}`);
     }
     return `${text.replace(/\n?$/, "\n")}${key}=${value}\n`;
+};
+
+// a folder as typed or dragged into the terminal: '/My Photos', "/My Photos" or /My\ Photos -> /My Photos
+const parseFolderInput = (input) => {
+    const text = String(input ?? "").trim();
+    const quoted = text.match(/^(["'])(.*)\1$/);
+    return expandHome(quoted ? quoted[2] : text.replace(/\\(.)/g, "$1"));
+};
+
+// projects.json with source/name added (replacing one with that name), the default when asked or when there's none yet
+const addProject = (projects, source, name, entry, { makeDefault = false } = {}) => {
+    const { default: current, ...rest } = projects;
+    const id = makeDefault || !current ? `${source}/${name}` : current;
+    return { default: id, ...rest, [source]: { ...rest[source], [name]: entry } };
 };
 
 // the two files Chrome writes when you upload a Meet background: of the files changed since `since`, the largest is the
@@ -146,8 +157,8 @@ const findSystemPython = () => {
 };
 
 const setupPython = () => {
-    if (fs.existsSync(VENV_PYTHON) && hasPillow(VENV_PYTHON)) {
-        ok("Python environment (.venv) with Pillow");
+    if (fs.existsSync(VENV_PYTHON) && hasPackages(VENV_PYTHON)) {
+        ok("Python environment (.venv) with Pillow and HEIC support");
         return true;
     }
 
@@ -164,12 +175,12 @@ const setupPython = () => {
         }
     }
 
-    step("Installing Python packages (Pillow)");
+    step("Installing Python packages (Pillow, pillow-heif)");
     if (run(VENV_PYTHON, ["-m", "pip", "install", "--quiet", "-r", "requirements.txt"]).status !== 0) {
         warn("Could not install the Python packages - run `npm run setup:python` again");
         return false;
     }
-    ok("Python environment (.venv) with Pillow");
+    ok("Python environment (.venv) with Pillow and HEIC support");
     return true;
 };
 
@@ -221,7 +232,7 @@ const listFiles = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(
 
 const tilde = (file) => file.replace(os.homedir(), "~");
 
-const setupMeet = async (input) => {
+const setupMeet = async (input, project) => {
     if (process.platform !== "darwin") {
         warn("The Google Meet step only knows where Chrome keeps its files on macOS - see the README to set the two paths by hand");
         return false;
@@ -242,10 +253,11 @@ const setupMeet = async (input) => {
         }
     }
 
-    const { project } = require("../settings.json").spotify;
-    const collage = path.join(ROOT, project, "collage.jpg");
+    const collage = path.join(project.dir, "collage.jpg");
+    const shown = `${project.folder}/collage.jpg`;
     if (!fs.existsSync(collage)) {
-        warn(`No ${project}/collage.jpg yet - run \`npm run full\` and \`npm run collage\` first, then \`npm run setup:meet\``);
+        const flags = `-- -p ${project.id}`;
+        warn(`No ${shown} yet - run \`npm run full ${flags}\` and \`npm run collage ${flags}\` first, then \`npm run setup:meet ${flags}\``);
         return false;
     }
     const dirs = meetBlobDirs();
@@ -259,7 +271,7 @@ const setupMeet = async (input) => {
   Upload the collage as a background in Google Meet once, Anaglypta replaces it from then on:
     1. In Chrome, open https://meet.google.com and start or preview a meeting
     2. Click "Apply visual effects" -> Backgrounds -> the + (upload) button
-    3. Pick ${project}/collage.jpg (opening it in Finder for you now)
+    3. Pick ${shown} (opening it in Finder for you now)
 `);
     spawnSync("open", ["-R", collage]);
 
@@ -285,39 +297,127 @@ const setupMeet = async (input) => {
         writeEnvValue("GOOGLE_MEET_BLOB_PATH", found.image);
         writeEnvValue("GOOGLE_MEET_BLOB_PATH_THUMBNAIL", found.thumbnail);
         ok("Google Meet paths saved to .env");
-        return run(process.execPath, [path.join(__dirname, "meet.js")]).status === 0;
+        return run(process.execPath, [path.join(__dirname, "meet.js"), "--project", project.id]).status === 0;
     }
     warn("Couldn't find the files - set GOOGLE_MEET_BLOB_PATH and GOOGLE_MEET_BLOB_PATH_THUMBNAIL by hand (see the README)");
     return false;
 };
 
-const main = async () => {
-    const pythonOnly = process.argv.includes("--python");
-    checkNode();
+// --- projects ---
 
-    if (pythonOnly) {
-        process.exitCode = setupPython() ? 0 : 1;
-        return;
-    }
-    if (process.argv.includes("--meet")) {
-        ensureEnvFile();
-        const input = createInput();
-        process.exitCode = (await setupMeet(input)) ? 0 : 1;
-        input.close();
-        return;
-    }
+const SOURCES = {
+    spotify: "the album covers of a Spotify playlist",
+    local: "the images in a folder on this computer",
+};
 
-    const todo = [];
-    if (!installNodePackages()) {
-        todo.push("Install the Node packages: `npm ci`");
-    }
-    if (!setupPython()) {
-        todo.push("Set up Python: `npm run setup:python`");
-    }
+const isYes = (answer) => answer !== null && /^y/i.test(answer.trim());
 
-    ensureEnvFile();
-    const input = createInput();
+// the default project's source/name, null when projects.json points at one that doesn't exist
+const defaultId = () => {
+    try {
+        return getProject({}).id;
+    } catch {
+        return null;
+    }
+};
 
+const askSource = async (input, sources) => {
+    console.log(`\n${sources.map((source, i) => `    ${i + 1}. ${source} - ${SOURCES[source] ?? source}`).join("\n")}\n`);
+    return askUntil(input, `  Make a collage from [${sources.map((_, i) => i + 1).join("/")}, empty to skip]: `,
+        (answer) => sources[Number(answer.trim()) - 1] ?? sources.find((source) => source === answer.trim().toLowerCase()),
+        `Pick ${sources.map((_, i) => i + 1).join(" or ")}`);
+};
+
+// asks for a name (suggestion on Enter), turned into kebab-case, null = skip
+const askProjectName = async (input, source, projects, suggestion) => {
+    for (;;) {
+        const answer = await input.ask(`  Project name${suggestion ? ` [${suggestion}]` : ""}: `);
+        if (answer === null) {
+            return null;
+        }
+        const name = toKebab(answer.trim() || suggestion);
+        if (!name) {
+            if (!answer.trim()) {
+                return null;
+            }
+            warn("Use letters and digits, like my-playlist");
+            continue;
+        }
+        if (projects[source]?.[name] && !isYes(await input.ask(`  ${source}/${name} already exists - replace it? [y/N] `))) {
+            continue;
+        }
+        return name;
+    }
+};
+
+// the playlist's name for the project name, when logged in (setup doesn't load .env into process.env by itself)
+const lookupPlaylistName = async (playlistId) => {
+    const env = readEnv();
+    if (!fs.existsSync(TOKEN_PATH) && !env.CLIENT_SECRET) {
+        return null;
+    }
+    for (const key of ["CLIENT_ID", "CLIENT_SECRET", "SPOTIFY_MARKET"]) {
+        if (env[key] && !process.env[key]) {
+            process.env[key] = env[key];
+        }
+    }
+    try {
+        return (await require("../api/spotify").getPlaylistMeta(playlistId)).name;
+    } catch (error) {
+        warn(`Couldn't look up the playlist (${error.message})`);
+        return null;
+    }
+};
+
+const askSpotifyProject = async (input, projects) => {
+    console.log("\n  Your playlist: in Spotify, open the playlist -> ... -> Share -> Copy link to playlist.");
+    console.log("  It has to be a playlist you own or collaborate on.\n");
+    const playlistId = await askUntil(input, "  Playlist link (empty to skip): ", parsePlaylistId,
+        "That doesn't look like a playlist link (https://open.spotify.com/playlist/...)");
+    if (!playlistId) {
+        return null;
+    }
+    const title = await lookupPlaylistName(playlistId);
+    if (title) {
+        ok(`Playlist: ${title}`);
+    }
+    const name = await askProjectName(input, "spotify", projects, toKebab(title));
+    return name && { name, entry: { playlist: `https://open.spotify.com/playlist/${playlistId}` } };
+};
+
+// how many images local.py would find (it knows the file types), null when python isn't ready
+const countImages = (folder) => {
+    const result = spawnSync(process.execPath, [path.join(__dirname, "python.js"), path.join(__dirname, "sources", "local.py"), "--count", folder],
+        { cwd: ROOT, encoding: "utf8" });
+    try {
+        return JSON.parse(result.stdout);
+    } catch {
+        return null;
+    }
+};
+
+const askLocalProject = async (input, projects) => {
+    console.log("\n  A folder of images (jpg, png, webp, gif, heic, ...). Only that folder, not its subfolders. Tip: drag it into the terminal.\n");
+    const isDir = (dir) => fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory() ?? false;
+    const folder = await askUntil(input, "  Folder (empty to skip): ", (answer) => {
+        const dir = path.resolve(parseFolderInput(answer));
+        return isDir(dir) && dir;
+    }, "That isn't a folder");
+    if (!folder) {
+        return null;
+    }
+    const count = countImages(folder);
+    if (count?.images === 0) {
+        warn(`No images in ${tilde(folder)} yet - add some before \`npm run full\``);
+    } else if (count) {
+        ok(`${count.images} images${count.others ? ` (and ${count.others} other files, ignored)` : ""}`);
+    }
+    const name = await askProjectName(input, "local", projects, toKebab(path.basename(folder)));
+    return name && { name, entry: { path: tilde(folder) } };
+};
+
+// CLIENT_ID and the login, only asked when there's a spotify project
+const setupSpotify = async (input, todo) => {
     if (readEnv().CLIENT_ID) {
         ok("CLIENT_ID is set");
     } else {
@@ -332,21 +432,6 @@ const main = async () => {
         }
     }
 
-    if (readEnv().PLAYLIST_ID) {
-        ok("PLAYLIST_ID is set");
-    } else {
-        console.log("\n  Your playlist: in Spotify, open the playlist -> ... -> Share -> Copy link to playlist.");
-        console.log("  It has to be a playlist you own or collaborate on.\n");
-        const playlistId = await askUntil(input, "  Playlist link (empty to skip): ", parsePlaylistId,
-            "That doesn't look like a playlist link (https://open.spotify.com/playlist/...)");
-        if (playlistId) {
-            writeEnvValue("PLAYLIST_ID", playlistId);
-            ok("PLAYLIST_ID saved to .env");
-        } else {
-            todo.push("Add PLAYLIST_ID to .env");
-        }
-    }
-
     const env = readEnv();
     if (fs.existsSync(TOKEN_PATH)) {
         ok("Logged in to Spotify");
@@ -356,12 +441,73 @@ const main = async () => {
         todo.push("Log in to Spotify: `npm run auth` (after adding CLIENT_ID)");
     } else {
         const answer = await input.ask("\n  Log in to Spotify now? [Y/n] ");
-        input.close();
         if (answer !== null && !/^n/i.test(answer.trim()) && run(process.execPath, [path.join(__dirname, "auth.js")]).status === 0) {
             ok("Logged in to Spotify");
         } else {
             todo.push("Log in to Spotify: `npm run auth`");
         }
+    }
+};
+
+const main = async () => {
+    const pythonOnly = process.argv.includes("--python");
+    checkNode();
+
+    if (pythonOnly) {
+        process.exitCode = setupPython() ? 0 : 1;
+        return;
+    }
+    if (process.argv.includes("--meet")) {
+        const { source, project } = parseProjectArgs(process.argv.slice(2));
+        const meetProject = getProject({ source, project });
+        ensureEnvFile();
+        const input = createInput();
+        process.exitCode = (await setupMeet(input, meetProject)) ? 0 : 1;
+        input.close();
+        return;
+    }
+
+    const todo = [];
+    if (!installNodePackages()) {
+        todo.push("Install the Node packages: `npm ci`");
+    }
+    if (!setupPython()) {
+        todo.push("Set up Python: `npm run setup:python`");
+    }
+
+    ensureEnvFile();
+    const input = createInput();
+    const settings = readSettings();
+    let projects = readProjects();
+    const existing = listProjects(settings, projects);
+    const ids = (list) => list.map(({ source, name }) => `${source}/${name}`).join(", ");
+
+    let source = null;
+    if (existing.length) {
+        ok(`Projects: ${ids(existing)} (default: ${defaultId() ?? "none - set \"default\" in projects.json"})`);
+        if (isYes(await input.ask("\n  Add another project? [y/N] "))) {
+            source = await askSource(input, Object.keys(settings.sources));
+        }
+    } else {
+        console.log("\n  Let's add your first project.");
+        source = await askSource(input, Object.keys(settings.sources));
+        if (!source) {
+            todo.push("Add a project: `npm run setup`");
+        }
+    }
+
+    if (source === "spotify" || existing.some((project) => project.source === "spotify")) {
+        await setupSpotify(input, todo);
+    }
+
+    const added = source && await (source === "spotify" ? askSpotifyProject : askLocalProject)(input, projects);
+    if (added) {
+        const makeDefault = existing.length > 0 && isYes(await input.ask(`  Make ${source}/${added.name} the default project? [y/N] `));
+        projects = addProject(projects, source, added.name, added.entry, { makeDefault });
+        writeProjects(projects);
+        ok(`Added ${source}/${added.name} to projects.json`);
+    } else if (source) {
+        todo.push("Add a project: `npm run setup`");
     }
     input.close();
 
@@ -369,13 +515,18 @@ const main = async () => {
         console.log(`\nAlmost there, still to do:\n${todo.map((item) => `  - ${item}`).join("\n")}`);
         console.log("Then run `npm run setup` again to check.");
         process.exitCode = 1;
-    } else {
-        console.log("\n✅ All set! Next:\n  npm run full       # fetch your playlist\n  npm run collage    # draw a random collage");
-        console.log("  npm run daily-new  # later: add one new album a day, with it in the middle of the collage");
-        console.log("  npm run collage    # remix the collage whenever you like");
+        return;
     }
+
+    const project = getProject(added ? { source, project: added.name } : {});
+    const flags = project.id === defaultId() ? "" : ` -- -p ${project.id}`;
+    const pad = (command) => command.padEnd(flags.length + 20);
+    console.log(`\n✅ All set! Next, for ${project.id}:`);
+    console.log(`  ${pad(`npm run full${flags}`)} # fetch everything (up to maxItems)`);
+    console.log(`  ${pad(`npm run collage${flags}`)} # draw a random collage, again whenever you like`);
+    console.log(`  ${pad(`npm run daily-new${flags}`)} # later: add one new item a day, with it in the middle`);
     if (!readEnv().GOOGLE_MEET_BLOB_PATH) {
-        console.log("\nOptional: use the collage as your Google Meet background - `npm run setup:meet` (once you have a collage)");
+        console.log(`\nOptional: use the collage as your Google Meet background - \`npm run setup:meet${flags}\` (once you have a collage)`);
     }
 };
 
@@ -386,4 +537,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { parsePlaylistId, isClientId, parseEnv, setEnvValue, pickBlobs };
+module.exports = { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, addProject, pickBlobs };
