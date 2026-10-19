@@ -5,6 +5,7 @@ import re
 import sys
 import time
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -261,6 +262,68 @@ def ensure_image(project, item, retries=3):
     squared.save(part, "JPEG", quality=90)
     part.replace(path)
     return path
+
+
+# --- cache limits: sources with "maxCacheDays" (tmdb: 180, its terms allow 6 months) ---
+
+REFRESH_BEFORE_DAYS = 30  # full/daily-new renew images this long before they expire, a heads-up is shown from then on
+
+
+def days_since(when, now):
+    return (now - when).total_seconds() / 86400
+
+
+def expire_cache(project, now=None):
+    """Removes what's older than the source allows: items whose data wasn't confirmed by a fetch (fetchedAt) and images
+    downloaded (file date) more than maxCacheDays ago. Returns {"items", "images", "soon"} counts, soon = images that
+    expire within REFRESH_BEFORE_DAYS. Does nothing for sources without a limit."""
+    counts = {"items": 0, "images": 0, "soon": 0}
+    max_days = project.get("maxCacheDays")
+    if not max_days:
+        return counts
+    now = now or datetime.now()
+    data = read_data(project)
+
+    def expired(item):
+        try:
+            return days_since(datetime.fromisoformat(item.get("fetchedAt") or item.get("addedAt") or ""), now) > max_days
+        except ValueError:
+            return False
+
+    kept = []
+    for item in data["items"]:
+        if expired(item):
+            image_path(project, item).unlink(missing_ok=True)
+            counts["items"] += 1
+            continue
+        kept.append(item)
+        path = image_path(project, item)
+        if path.exists():
+            age = days_since(datetime.fromtimestamp(path.stat().st_mtime), now)
+            if age > max_days:
+                path.unlink()
+                counts["images"] += 1
+            elif age > max_days - REFRESH_BEFORE_DAYS:
+                counts["soon"] += 1
+    if counts["items"]:
+        data["items"] = kept
+        write_data(project, data)
+    return counts
+
+
+def report_expired(project, counts):
+    """The warnings for expire_cache's counts."""
+    days = project.get("maxCacheDays")
+    full = f"`npm run full -- -p {project['id']}`"
+    if counts["items"]:
+        warn(f"{counts['items']} item(s) of {project['id']} were last fetched over {days} days ago and were removed "
+             f"(the source's terms) - {full} fetches them again")
+    if counts["images"]:
+        warn(f"{counts['images']} image(s) of {project['id']} were older than {days} days and were removed "
+             f"(the source's terms) - {full} downloads them again")
+    if counts["soon"]:
+        print(f"Heads-up: {counts['soon']} image(s) of {project['id']} expire within {REFRESH_BEFORE_DAYS} days - "
+              f"{full} renews them")
 
 
 def load_tile(path, width, height, scale):

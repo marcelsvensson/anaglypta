@@ -156,6 +156,32 @@ const readData = (project) => {
     return { ...data, source: project.source, project: project.name, state: { ...data.state }, items: data.items ?? [] };
 };
 
+// a source's cache limit (maxCacheDays, tmdb: 180) is renewed this long before it runs out, common.py has the same
+const REFRESH_BEFORE_DAYS = 30;
+
+// the project's cached images older than days, oldest first: [{ id, file, days }]
+const oldImages = (dir, items, days, now = Date.now()) => items
+    .map((item) => ({ id: item.id, file: path.join(dir, "images", `${item.id}.jpg`) }))
+    .filter(({ file }) => fs.existsSync(file))
+    .map((image) => ({ ...image, days: (now - fs.statSync(image.file).mtimeMs) / 86400000 }))
+    .filter((image) => image.days > days)
+    .sort((a, b) => b.days - a.days);
+
+// for the project list in setup: "", or a note when images are close to (or past) the source's cache limit
+const cacheNote = (project, now = Date.now()) => {
+    if (!project.maxCacheDays) {
+        return "";
+    }
+    const old = oldImages(project.dir, readData(project).items, project.maxCacheDays - REFRESH_BEFORE_DAYS, now);
+    if (!old.length) {
+        return "";
+    }
+    const expired = old.filter((image) => image.days > project.maxCacheDays).length;
+    return expired
+        ? ` - ${expired} image(s) past the ${project.maxCacheDays}-day limit, run \`npm run full -- -p ${project.id}\``
+        : ` - ${old.length} image(s) expire within ${REFRESH_BEFORE_DAYS} days, run \`npm run full -- -p ${project.id}\``;
+};
+
 const writeData = (project, data) => {
     fs.mkdirSync(project.dir, { recursive: true });
     writeJson(itemsPath(project.dir), data);
@@ -180,4 +206,7 @@ module.exports = {
     projectArgs,
     readData,
     writeData,
+    REFRESH_BEFORE_DAYS,
+    oldImages,
+    cacheNote,
 };

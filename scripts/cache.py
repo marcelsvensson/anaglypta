@@ -5,7 +5,7 @@ usage: python scripts/cache.py [-s <source>] [-p <project>]
 """
 import argparse
 
-from common import Progress, add_project_args, ensure_image, image_path, load_project, read_items, warn
+from common import Progress, add_project_args, ensure_image, expire_cache, image_path, load_project, read_items, warn
 
 # this many failures in a row before anything worked: probably offline, the rest would only fail slowly too
 GIVE_UP_AFTER = 3
@@ -36,6 +36,8 @@ def main():
     args = parser.parse_args()
 
     project = load_project(args.source, args.project)
+    # what's past the limit goes first (quietly: full/daily-new just renewed what they could), then it's downloaded again
+    expire_cache(project)
     made, failed, skipped = cache(project)
     if skipped:
         warn(f"Gave up after {failed} failed images in a row (offline?) - {skipped + failed} are fetched on the next run")

@@ -4,7 +4,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { readData, writeData } = require("../project");
+const { REFRESH_BEFORE_DAYS, oldImages, readData, writeData } = require("../project");
 
 // a list entry -> an item. ids carry the media type, a movie and a series can share a number
 const toItem = (entry, posterUrl, addedAt) => ({
@@ -14,11 +14,13 @@ const toItem = (entry, posterUrl, addedAt) => ({
     title: entry.title,
     subtitle: entry.year,
     addedAt,
+    fetchedAt: addedAt,
     source: posterUrl(entry.posterPath),
 });
 
 // pure: the items after this fetch -> { items, added, dropped, noPoster }
-// items keep their order in items.json (new ones at the end, so the newest is the last item, the --latest centrepiece)
+// items keep their order in items.json (new ones at the end, so the newest is the last item, the --latest centrepiece).
+// every item gets fetchedAt = addedAt (today): its data was just confirmed by TMDb, which restarts its cache limit
 const syncItems = (existing, entries, { maxItems = 200, limit = Infinity, addedAt, posterUrl }) => {
     const withPoster = entries.filter((entry) => entry.posterPath);
     const wanted = withPoster.slice(0, maxItems).map((entry) => `${entry.mediaType}-${entry.id}`);
@@ -38,7 +40,7 @@ const syncItems = (existing, entries, { maxItems = 200, limit = Infinity, addedA
     const current = new Map(withPoster.map((entry) => [`${entry.mediaType}-${entry.id}`, entry]));
     const kept = existing.filter((item) => keep.has(item.id)).map((item) => {
         const entry = current.get(item.id);
-        return { ...item, title: entry.title, subtitle: entry.year };
+        return { ...item, title: entry.title, subtitle: entry.year, fetchedAt: addedAt };
     });
     return {
         items: [...kept, ...added],
@@ -49,7 +51,8 @@ const syncItems = (existing, entries, { maxItems = 200, limit = Infinity, addedA
 };
 
 // tmdb = api/tmdb.js (passed in, so this module doesn't touch the network or .env on import)
-const fetchTmdb = async (project, { limit = Infinity, tmdb, today = new Date().toLocaleDateString("sv") }) => {
+const fetchTmdb = async (project, { limit = Infinity, tmdb, now = Date.now() }) => {
+    const today = new Date(now).toLocaleDateString("sv");
     if (!project.listId) {
         throw new Error(`tmdb.${project.name}.list in projects.json isn't a TMDb list link or id`);
     }
@@ -73,6 +76,17 @@ const fetchTmdb = async (project, { limit = Infinity, tmdb, today = new Date().t
         data.state.lastFetched = today;
     }
     writeData(project, data);
+
+    // posters close to the cache limit are removed, fetch.js runs cache.py next, which downloads them again
+    if (project.maxCacheDays) {
+        const renew = oldImages(project.dir, items, project.maxCacheDays - REFRESH_BEFORE_DAYS, now);
+        for (const { file } of renew) {
+            fs.rmSync(file, { force: true });
+        }
+        if (renew.length) {
+            console.log(`Renewing ${renew.length} poster(s) downloaded over ${project.maxCacheDays - REFRESH_BEFORE_DAYS} days ago (TMDb's cache limit)`);
+        }
+    }
 
     if (added.length === 1) {
         console.log(`Added "${added[0].title}"`);

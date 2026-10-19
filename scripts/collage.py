@@ -11,7 +11,8 @@ import sys
 
 from PIL import Image, ImageOps
 
-from common import ROOT, add_project_args, canvas_size, cell_xy, ensure_image, load_project, load_tile, read_items, warn
+from common import (ROOT, add_project_args, canvas_size, cell_xy, ensure_image, expire_cache, load_project, load_tile, read_items,
+                    report_expired, warn)
 
 DEFAULT_CENTER = {"col": 4, "row": 2, "size": 5}
 # a small copy of the collage, saved next to it as collage_thumbnail.jpg (72 dpi), scaled to cover and cropped in the centre, never stretched
@@ -60,6 +61,7 @@ def main():
         center = {**center, "size": 0}
     cells = free_cells(col, row, center, collage.get("skip", []))
 
+    report_expired(project, expire_cache(project))
     items = read_items(project)
     if not items:
         sys.exit(f"Nothing fetched for {project['id']} yet - run `npm run full -- -p {project['id']}` first")

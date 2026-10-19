@@ -12,6 +12,6 @@
   "sources": {
     "spotify": {},
     "local": {},
-    "tmdb": {}
+    "tmdb": { "maxCacheDays": 180 }
   }
 }

@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { resolveProject, parseProjectArgs, projectArgs, toKebab, deepMerge, listProjects, readData, writeData } = require("../scripts/project");
+const { resolveProject, parseProjectArgs, projectArgs, toKebab, deepMerge, listProjects, readData, writeData, cacheNote } = require("../scripts/project");
 const { settings, projects, cases } = require("./fixtures/project-cases.json");
 
 // the same cases run in test/test_project.py, so both resolvers agree
@@ -95,6 +95,31 @@ test("clean removes every project's image cache, nothing else in projects/", () 
         fs.writeFileSync(path.join(root, "projects", ".gitkeep"), "");
         const targets = cleanTargets(root).map((target) => path.relative(root, target)).filter((target) => fs.existsSync(path.join(root, target)));
         assert.deepEqual(targets.sort(), ["projects/local/cats/images", "projects/spotify/album/images"]);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("cacheNote warns about images close to or past the cache limit, only for sources with one", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
+    try {
+        const project = { source: "tmdb", name: "s", id: "tmdb/s", dir: path.join(root, "s"), maxCacheDays: 180 };
+        const now = Date.now();
+        writeData(project, { items: [{ id: "a" }, { id: "b" }] });
+        fs.mkdirSync(path.join(project.dir, "images"));
+        const poster = (id, daysAgo) => {
+            const file = path.join(project.dir, "images", `${id}.jpg`);
+            fs.writeFileSync(file, "x");
+            fs.utimesSync(file, new Date(now - daysAgo * 86400000), new Date(now - daysAgo * 86400000));
+        };
+        poster("a", 10);
+        poster("b", 10);
+        assert.equal(cacheNote(project, now), "");
+        poster("b", 160);
+        assert.match(cacheNote(project, now), /1 image\(s\) expire within 30 days, run `npm run full -- -p tmdb\/s`/);
+        poster("b", 200);
+        assert.match(cacheNote(project, now), /1 image\(s\) past the 180-day limit/);
+        assert.equal(cacheNote({ ...project, maxCacheDays: undefined }, now), "");
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }

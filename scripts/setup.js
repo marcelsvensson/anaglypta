@@ -11,7 +11,7 @@ const { spawnSync } = require("node:child_process");
 
 const { VENV_PYTHON, hasPackages } = require("./python");
 const {
-    expandHome, parsePlaylistId, parseListId, toKebab, readSettings, readProjects, writeProjects, listProjects, getProject, resolveProject,
+    expandHome, parsePlaylistId, parseListId, toKebab, cacheNote, readSettings, readProjects, writeProjects, listProjects, getProject, resolveProject,
     parseProjectArgs,
 } = require("./project");
 
@@ -788,7 +788,7 @@ const main = async () => {
             }
             const current = defaultId();
             ok("Projects:");
-            console.log(list.map((id, i) => `    ${i + 1}. ${id}${id === current ? " (default)" : ""}`).join("\n"));
+            console.log(list.map((id, i) => `    ${i + 1}. ${id}${id === current ? " (default)" : ""}${cacheNote(getProject({ project: id }))}`).join("\n"));
             if (!current) {
                 warn("No default project (the one used without -p) - pick one");
                 await changeDefault();

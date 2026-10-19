@@ -81,7 +81,7 @@ test("syncItems adds every entry with a poster, ids carry the media type", () =>
     assert.equal(noPoster, 1);
     assert.deepEqual(items[1], {
         id: "tv-1429", tmdbId: 1429, mediaType: "tv", title: "Attack on Titan", subtitle: "2013", addedAt: "2026-10-20",
-        source: "https://image.tmdb.org/t/p/w780/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg",
+        fetchedAt: "2026-10-20", source: "https://image.tmdb.org/t/p/w780/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg",
     });
 });
 
@@ -94,6 +94,7 @@ test("syncItems keeps the order, appends new ones, drops what left the list and 
     assert.deepEqual(items.map((item) => item.id), ["movie-496243", "tv-1396", "tv-1429", "movie-1429"]);
     assert.equal(items[0].title, "Parasite");
     assert.equal(items[0].addedAt, "2026-01-01");
+    assert.equal(items[0].fetchedAt, "2026-10-20", "confirmed by this fetch");
     assert.deepEqual(dropped.map((item) => item.id), ["tv-gone"]);
 });
 
@@ -117,7 +118,7 @@ test("fetchTmdb writes items.json and removes the images of dropped items", asyn
         fs.writeFileSync(path.join(project.dir, "images", "tv-gone.jpg"), "x");
         const tmdb = { getList: async () => ({ name: "My series", items: entries }), posterUrl };
 
-        await fetchTmdb(project, { tmdb, today: "2026-10-20" });
+        await fetchTmdb(project, { tmdb, now: new Date("2026-10-20T12:00:00").getTime() });
         const data = readData(project);
         assert.equal(data.items.length, 4);
         assert.deepEqual(data.state.list, { id: "8512345", name: "My series", url: "https://www.themoviedb.org/list/8512345" });
@@ -125,6 +126,42 @@ test("fetchTmdb writes items.json and removes the images of dropped items", asyn
         assert.equal(fs.existsSync(path.join(project.dir, "images", "tv-gone.jpg")), false);
 
         await assert.rejects(fetchTmdb({ ...project, listId: null }, { tmdb }), /isn't a TMDb list link or id/);
+    } finally {
+        console.log = log;
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("fetchTmdb renews posters downloaded over maxCacheDays - 30 days ago", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
+    const log = console.log;
+    const lines = [];
+    console.log = (line) => lines.push(line);
+    try {
+        const project = { source: "tmdb", name: "s", id: "tmdb/s", listId: "1", maxCacheDays: 180, dir: path.join(root, "p") };
+        const now = Date.now();
+        const day = 86400000;
+        writeData(project, { items: [{ id: "tv-1396" }, { id: "tv-1429" }] });
+        fs.mkdirSync(path.join(project.dir, "images"));
+        const poster = (id, daysAgo) => {
+            const file = path.join(project.dir, "images", `${id}.jpg`);
+            fs.writeFileSync(file, "x");
+            fs.utimesSync(file, new Date(now - daysAgo * day), new Date(now - daysAgo * day));
+            return file;
+        };
+        const fresh = poster("tv-1396", 149);
+        const old = poster("tv-1429", 151);
+        const tmdb = { getList: async () => ({ name: "L", items: entries.slice(0, 2) }), posterUrl };
+
+        await fetchTmdb(project, { tmdb, now });
+        assert.equal(fs.existsSync(fresh), true);
+        assert.equal(fs.existsSync(old), false, "renewed: cache.py downloads it again");
+        assert.ok(lines.some((line) => /Renewing 1 poster/.test(line)));
+
+        // a source without a limit keeps everything
+        poster("tv-1429", 400);
+        await fetchTmdb({ ...project, maxCacheDays: undefined }, { tmdb, now });
+        assert.equal(fs.existsSync(path.join(project.dir, "images", "tv-1429.jpg")), true);
     } finally {
         console.log = log;
         fs.rmSync(root, { recursive: true, force: true });
