@@ -211,10 +211,39 @@ def label(item):
     return item.get("title") or item["id"]
 
 
-def square(image, size):
-    """Turned upright (EXIF), RGB, cropped to a centred square and resized to size x size - never stretched."""
+def parse_aspect(text):
+    """'2:3' -> (2, 3), also 2x3 and 2/3. ValueError for anything else."""
+    match = re.fullmatch(r"\s*(\d+)\s*[:x/]\s*(\d+)\s*", str(text or "1:1"))
+    if not match or not int(match[1]) or not int(match[2]):
+        raise ValueError(f'aspect "{text}" should look like 1:1, 2:3 or 16:9')
+    return int(match[1]), int(match[2])
+
+
+def image_dimensions(project):
+    """The size of the project's cached copies: its aspect ratio, imageSize on the long side."""
+    aspect_width, aspect_height = parse_aspect(project.get("aspect"))
+    size = project.get("imageSize", 640)
+    if aspect_width >= aspect_height:
+        return size, round(size * aspect_height / aspect_width)
+    return round(size * aspect_width / aspect_height), size
+
+
+def crop(image, dimensions):
+    """Turned upright (EXIF), RGB, cropped around the centre to the ratio of dimensions and resized - never stretched."""
     image = ImageOps.exif_transpose(image)
-    return ImageOps.fit(image.convert("RGB"), (size, size), Image.Resampling.LANCZOS)
+    return ImageOps.fit(image.convert("RGB"), dimensions, Image.Resampling.LANCZOS)
+
+
+def image_ready(project, item):
+    """The cached copy exists with the project's current shape and size (aspect and imageSize can change)."""
+    path = image_path(project, item)
+    if not path.exists():
+        return False
+    try:
+        with Image.open(path) as cached:
+            return cached.size == image_dimensions(project)
+    except Exception:  # a broken copy is made again
+        return False
 
 
 def download(url, retries=3):
@@ -240,26 +269,30 @@ def open_source(source, retries=3):
 
 
 def ensure_image(project, item, retries=3):
-    """Path to the item's square image, made first if needed. None if the source can't be read."""
+    """Path to the item's cached copy, made first if needed (or when the project's shape or size changed - the old copy
+    is used when that fails). None if the source can't be read."""
     path = image_path(project, item)
-    if path.exists():
+    if image_ready(project, item):
         return path
+    fallback = path if path.exists() else None
+    if fallback:
+        retries = 1  # an old copy can stand in, no need to wait for retries (offline after an aspect change)
 
     source = item.get("source")
     if not source:
         warn(f"No image for {label(item)}")
-        return None
+        return fallback
     try:
         with open_source(source, retries) as image:
-            squared = square(image, project.get("imageSize", 640))
+            cropped = crop(image, image_dimensions(project))
     except Exception as error:  # network errors and broken or unknown images alike
         hint = " (HEIC needs `npm run setup:python`)" if not HEIF and source.lower().endswith((".heic", ".heif")) else ""
         warn(f"Could not read the image for {label(item)}: {error}{hint}")
-        return None
+        return fallback
 
     path.parent.mkdir(parents=True, exist_ok=True)
     part = path.with_suffix(".part")
-    squared.save(part, "JPEG", quality=90)
+    cropped.save(part, "JPEG", quality=90)
     part.replace(path)
     return path
 

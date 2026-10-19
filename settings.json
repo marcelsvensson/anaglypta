@@ -3,15 +3,12 @@
   "defaults": {
     "maxItems": 200,
     "imageSize": 640,
-    "collage": {
-      "col": 13, "row": 9, "width": 100, "height": 100, "scale": 1, "gap": 8,
-      "center": { "col": 4, "row": 2, "size": 5 },
-      "skip": []
-    }
+    "aspect": "1:1",
+    "collage": { "layout": "13x9/5", "canvasWidth": 1412, "gap": 8, "scale": 1, "skip": [] }
   },
   "sources": {
     "spotify": {},
     "local": {},
-    "tmdb": { "maxCacheDays": 180 }
+    "tmdb": { "maxCacheDays": 180, "aspect": "2:3", "imageSize": 960, "collage": { "layout": "auto" } }
   }
 }

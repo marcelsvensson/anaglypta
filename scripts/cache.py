@@ -1,11 +1,11 @@
-"""Makes the square copy of every item in a project that doesn't have one yet (fetch.js runs it after every fetch), so
+"""Makes the cached copy (cropped to the project's aspect) of every item in a project that doesn't have one yet (fetch.js runs it after every fetch), so
 collage.py doesn't need the network later. Failed downloads are tried again on the next run.
 
 usage: python scripts/cache.py [-s <source>] [-p <project>]
 """
 import argparse
 
-from common import Progress, add_project_args, ensure_image, expire_cache, image_path, load_project, read_items, warn
+from common import Progress, add_project_args, ensure_image, expire_cache, image_ready, load_project, read_items, warn
 
 # this many failures in a row before anything worked: probably offline, the rest would only fail slowly too
 GIVE_UP_AFTER = 3
@@ -13,7 +13,8 @@ GIVE_UP_AFTER = 3
 
 def cache(project):
     """Returns (made, failed, missing) - missing counts the items it didn't get to after giving up."""
-    missing = [item for item in read_items(project) if not image_path(project, item).exists()]
+    # missing, or made for another aspect or imageSize
+    missing = [item for item in read_items(project) if not image_ready(project, item)]
     progress = Progress(len(missing))
     made = failed = 0
     try:

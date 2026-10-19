@@ -4,7 +4,7 @@
 >
 > — [Wikipedia](https://en.wikipedia.org/wiki/Anaglypta)
 
-Turn a Spotify playlist, a TMDb list of movies and series or a folder of photos into wallpaper. Anaglypta makes **a collage**: 92 square images around a big centrepiece (a random one or the newest), or 117 without one, good as a desktop background or in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music, film (or cats).
+Turn a Spotify playlist, a TMDb list of movies and series or a folder of photos into wallpaper. Anaglypta makes **a collage**: a grid of images around a big centrepiece (a random one or the newest), by default 92 square album covers, or posters in their own 2:3 shape, good as a desktop background or in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music, film (or cats).
 
 ## Sources and projects
 
@@ -39,7 +39,7 @@ Each project lives in `projects/<source>/<name>/`: `items.json` (what's been fet
    npm run collage
    ```
 
-`npm run setup` walks you through the rest: it sets up Python, creates `.env` and adds your first project. For Spotify it asks for your Client ID, logs you in and suggests a project name from the playlist's name. For a folder it counts the images and suggests the folder's name. Run it again at any time to check that everything is in place, and to add a project, pick which one is the default, rename one or remove one. Removing deletes the project's folder in `projects/` (never your own photos), and first shows the lines in your crontab that use the project, so you can change them before they start failing. `npm run full` fetches the images, `npm run collage` draws the collage.
+`npm run setup` walks you through the rest: it sets up Python, creates `.env` and adds your first project. For Spotify it asks for your Client ID, logs you in and suggests a project name from the playlist's name. For a folder it counts the images, asks for the shape of the tiles (square, portrait, landscape or wide) and suggests the folder's name. Run it again at any time to check that everything is in place, and to add a project, pick which one is the default, rename one or remove one. Removing deletes the project's folder in `projects/` (never your own photos), and first shows the lines in your crontab that use the project, so you can change them before they start failing. `npm run full` fetches the images, `npm run collage` draws the collage.
 
 Then look in `projects/<source>/<name>/`: `collage.jpg` (and a small `collage_thumbnail.jpg`).
 
@@ -103,6 +103,17 @@ npm run collage -- --latest         # the newest one in the middle
 npm run random-meet -- --fill       # no centrepiece, the middle is filled with images too
 ```
 
+### Layouts
+
+A layout is columns × rows / centrepiece size, in cells: the default `13x9/5` is 13 × 9 cells with a 5 × 5 centrepiece, which takes 93 images (92 cells and the centrepiece). TMDb projects and local projects with a shape other than square use `auto`: the largest layout that the project's items can fill, so the grid grows with the list. The centrepiece always has the tiles' shape and sits exactly in the middle, and the collage stays about 1412 pixels wide whatever the layout.
+
+```sh
+npm run collage -- -p series --grid            # print the layouts for the project's shape and how many items they need
+npm run collage -- -p series --layout 10x4/2   # draw one collage with that layout (nothing is saved)
+```
+
+To keep a layout, set it for the project in `projects.json`: `"collage": { "layout": "10x4/2" }`.
+
 ## All commands
 
 All of them take `-p <project>` / `-s <source>` after `--`.
@@ -147,12 +158,12 @@ Written by `npm run setup`, ignored by git (see [`projects.example.json`](projec
 {
   "default": "spotify/album",
   "spotify": { "album": { "playlist": "https://open.spotify.com/playlist/..." } },
-  "local": { "cats": { "path": "~/Pictures/cats", "collage": { "center": { "size": 3 } } } },
+  "local": { "cats": { "path": "~/Pictures/cats", "aspect": "2:3", "collage": { "layout": "auto" } } },
   "tmdb": { "series": { "list": "https://www.themoviedb.org/list/..." } }
 }
 ```
 
-Project names are folder names: lowercase letters, digits and `-`. A project can override any of the settings below, like `cats` does with a smaller centrepiece.
+Project names are folder names: lowercase letters, digits and `-`. A project can override any of the settings below, like `cats` does with portrait tiles and a layout that grows with the folder.
 
 ### `settings.json`: how things look
 
@@ -162,11 +173,14 @@ Defaults for every project, under `defaults`, and per source under `sources.<sou
 |---|---|
 | `default` | The default project when `projects.json` doesn't name one |
 | `maxItems` | The most items a project will hold (default `200`). At the limit, `full` and `daily-new` add nothing more |
-| `imageSize` | The size of the square copies in `images/` (default `640`, big enough for the centrepiece). Run `npm run clean` after changing it |
+| `aspect` | The shape of the tiles: `1:1` (default), `2:3` (TMDb's default, posters), `3:2`, `16:9`, ... Images are cropped to it around the middle, never stretched |
+| `imageSize` | The long side of the copies in `images/` (default `640`, TMDb `960`, big enough for the centrepiece). Copies are made again by themselves when this or `aspect` changes |
 | `sources.tmdb.maxCacheDays` | How long TMDb data and posters may be kept (`180`, TMDb's terms allow 6 months - don't raise it) |
-| `collage` | The collage grid: `col` × `row` cells, each image cropped to `width` × `height` pixels and enlarged `scale` times, with `gap` pixels between cells, plus `center` (top-left cell and size of the centrepiece, in cells) and `skip` (cells to leave empty, as `[col, row]`) |
+| `collage.layout` | The grid, see [Layouts](#layouts): `13x9/5` (default) or `auto` (TMDb's default) |
+| `collage.canvasWidth` | About how wide the collage is, in pixels (default `1412`): the tiles get their size from it |
+| `collage.gap`, `collage.scale`, `collage.skip` | Pixels between the tiles (`8`); how many times each tile is enlarged without smoothing, for a pixel look (`1`); cells to leave empty, as `[col, row]` |
 
-The collage has 92 cells around the centrepiece by default. When you have more images, `npm run collage` picks at random from all of them, up to `maxItems`.
+Older settings with `col`, `row`, `width`, `height` and `center` still work and win over `layout`. When you have more images than the layout's cells, `npm run collage` picks at random from all of them, up to `maxItems`.
 
 ## Google Meet background (experimental)
 

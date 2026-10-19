@@ -553,8 +553,28 @@ const askLocalProject = async (input, projects) => {
             warn(`Only the newest ${maxItems} are used (maxItems in settings.json, or per project in projects.json)`);
         }
     }
+    const aspect = await askAspect(input);
     const name = await askProjectName(input, "local", projects, toKebab(path.basename(folder)));
-    return name && { name, entry: { path: tilde(folder) } };
+    // a shape other than square gets a grid that grows with the folder (the default 13x9 is made for square tiles)
+    const shape = aspect === "1:1" ? {} : { aspect, collage: { layout: "auto" } };
+    return name && { name, entry: { path: tilde(folder), ...shape } };
+};
+
+const ASPECTS = [
+    ["1:1", "square"],
+    ["2:3", "portrait - phone photos, posters"],
+    ["3:2", "landscape - camera photos"],
+    ["16:9", "wide - screenshots, video stills"],
+];
+
+// the tiles' shape, Enter = square
+const askAspect = async (input) => {
+    console.log(`\n  The shape of the tiles (the images are cropped to it around the middle):`);
+    console.log(ASPECTS.map(([aspect, what], i) => `    ${i + 1}. ${aspect.padEnd(5)} ${what}`).join("\n"));
+    const aspect = await askUntil(input, `  Shape [1-${ASPECTS.length}, Enter = square]: `,
+        (answer) => ASPECTS[Number(answer.trim()) - 1]?.[0] ?? ASPECTS.find(([value]) => value === answer.trim())?.[0],
+        `Pick a number from 1 to ${ASPECTS.length}`);
+    return aspect ?? "1:1";
 };
 
 // CLIENT_ID and the login, only asked when there's a spotify project

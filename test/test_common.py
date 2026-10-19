@@ -10,7 +10,7 @@ import tempfile  # noqa: E402
 
 from PIL import Image  # noqa: E402
 
-from common import Progress, canvas_size, cell_xy, ensure_image, image_path, square  # noqa: E402
+from common import Progress, canvas_size, cell_xy, crop, ensure_image, image_dimensions, image_path, image_ready, parse_aspect  # noqa: E402
 
 RED, BLUE = (255, 0, 0), (0, 0, 255)
 
@@ -26,7 +26,31 @@ def halves(width, height):
     return image
 
 
-class SquareTest(unittest.TestCase):
+def square(image, size):
+    return crop(image, (size, size))
+
+
+class CropTest(unittest.TestCase):
+    def test_parse_aspect(self):
+        self.assertEqual(parse_aspect("2:3"), (2, 3))
+        self.assertEqual(parse_aspect(" 16x9 "), (16, 9))
+        self.assertEqual(parse_aspect(None), (1, 1))
+        for bad in ("square", "0:1", "2:"):
+            with self.assertRaises(ValueError):
+                parse_aspect(bad)
+
+    def test_image_dimensions_put_image_size_on_the_long_side(self):
+        self.assertEqual(image_dimensions({"imageSize": 640}), (640, 640))
+        self.assertEqual(image_dimensions({"aspect": "2:3", "imageSize": 960}), (640, 960))
+        self.assertEqual(image_dimensions({"aspect": "16:9", "imageSize": 640}), (640, 360))
+
+    def test_a_portrait_crop_keeps_the_middle(self):
+        # a wide image cropped to 2:3 keeps its middle: the red/blue edge stays in the centre column
+        result = crop(halves(60, 30), (8, 12))
+        self.assertEqual(result.size, (8, 12))
+        self.assertTrue(close(result.getpixel((1, 6)), RED))
+        self.assertTrue(close(result.getpixel((6, 6)), BLUE))
+
     def test_crops_the_centre_and_never_stretches(self):
         result = square(halves(40, 10), 8)
         self.assertEqual(result.size, (8, 8))
@@ -101,6 +125,26 @@ class EnsureImageTest(unittest.TestCase):
             self.assertEqual(image.size, (16, 16))
         source.unlink()
         self.assertEqual(ensure_image(self.project, item), path, "the cached copy is used")
+
+    def test_a_copy_of_another_shape_is_made_again(self):
+        source = self.root / "photo.png"
+        halves(30, 60).save(source)
+        item = {"id": "abc", "source": str(source)}
+        ensure_image(self.project, item)
+        self.project["aspect"] = "2:3"
+        self.assertFalse(image_ready(self.project, item))
+        with Image.open(ensure_image(self.project, item)) as image:
+            self.assertEqual(image.size, (11, 16))
+
+    def test_the_old_copy_stands_in_when_the_source_is_gone(self):
+        source = self.root / "photo.png"
+        halves(30, 60).save(source)
+        item = {"id": "abc", "source": str(source)}
+        path = ensure_image(self.project, item)
+        source.unlink()
+        self.project["aspect"] = "2:3"
+        with mock.patch("sys.stderr", io.StringIO()):
+            self.assertEqual(ensure_image(self.project, item), path)
 
     def test_unreadable_and_missing_sources_give_none(self):
         broken = self.root / "broken.jpg"

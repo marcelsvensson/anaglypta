@@ -24,7 +24,8 @@ class RenderTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
         self.dir = root / "projects" / "spotify" / "album"
-        self.project = {"source": "spotify", "name": "album", "id": "spotify/album", "dir": self.dir, "collage": COLLAGE}
+        # the cached 8x8 images match imageSize 8, so nothing is made again (or downloaded)
+        self.project = {"source": "spotify", "name": "album", "id": "spotify/album", "dir": self.dir, "collage": COLLAGE, "imageSize": 8}
         self.items = []
         for i, colour in enumerate(COLOURS):
             self.add_item(f"album{i}", colour)
@@ -142,6 +143,24 @@ class RenderTest(unittest.TestCase):
         # the cell right of the centre is outside it
         x, y = common.cell_xy(4, 1, 10, 10, 2)
         self.assertColour(self.colour_at(image, x + 5, y + 5), (0, 0, 0))
+
+    def test_collage_with_poster_tiles_and_a_layout(self):
+        # 2:3 tiles of 12x18: canvasWidth fits 5 of them and their gaps, 5x3/1 puts the 1x1 centrepiece in the middle
+        self.project.update({"aspect": "2:3", "imageSize": 18})
+        self.project["collage"] = {"layout": "5x3/1", "canvasWidth": 5 * 12 + 6 * 2, "gap": 2}
+        for item in {item["id"] for item in self.items}:
+            Image.new("RGB", (12, 18), (0, 200, 0)).save(self.dir / "images" / f"{item}.jpg")
+        with mock.patch.object(sys, "argv", ["test", "--latest"]), redirect_stdout(io.StringIO()) as out:
+            collage.main()
+        with Image.open(self.dir / "collage.jpg") as image:
+            self.assertEqual(image.size, (72, 3 * 18 + 4 * 2))
+        self.assertIn("layout 5x3/1", out.getvalue())
+
+    def test_collage_grid_only_prints(self):
+        with mock.patch.object(sys, "argv", ["test", "--grid"]), redirect_stdout(io.StringIO()) as out:
+            collage.main()
+        self.assertIn("Layouts for 1:1 tiles, 3 items", out.getvalue())
+        self.assertFalse((self.dir / "collage.jpg").exists())
 
     def test_collage_latest_and_cover_cant_be_combined(self):
         with mock.patch.object(sys, "argv", ["test", "--latest", "--cover"]), \

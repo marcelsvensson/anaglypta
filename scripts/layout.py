@@ -1,0 +1,130 @@
+"""Grid layouts: how many tiles of an aspect ratio fit around a centrepiece. Pure, used by collage.py (and its --grid).
+
+A layout is "COLSxROWS/CENTRE": 13x9/5 = 13 columns, 9 rows and a 5x5 centrepiece in the middle (today's default), or
+"auto": the largest layout the project's items can fill. The centrepiece is a square block of cells, so it has the tiles'
+ratio too, and it sits exactly in the middle: cols - centre and rows - centre are even. Tiles get their size from
+canvasWidth (1412 = 13 tiles of 100 + gaps of 8), so the collage stays about as wide whatever the layout.
+"""
+import re
+
+LAYOUT = re.compile(r"^\s*(\d+)\s*x\s*(\d+)\s*(?:/\s*(\d+))?\s*$")
+# canvas width / height a background can have, from a squarish screen to a wide one
+MIN_SHAPE, MAX_SHAPE = 1.2, 1.9
+IDEAL_SHAPE = 1.6
+# below this (short side, in pixels) a tile is too small to make out
+MIN_TILE = 90
+DEFAULT_LAYOUT = "13x9/5"
+DEFAULT_CANVAS_WIDTH = 1412
+DEFAULT_GAP = 8
+
+
+def parse_layout(text):
+    """'13x9/5' -> (13, 9, 5), '6x4' -> (6, 4, 0) (no centrepiece). ValueError when it doesn't fit."""
+    match = LAYOUT.match(str(text))
+    if not match:
+        raise ValueError(f'layout "{text}" should look like 13x9/5 (columns x rows / centrepiece size), or auto')
+    col, row, size = int(match[1]), int(match[2]), int(match[3] or 0)
+    if col < 1 or row < 1 or size > min(col, row):
+        raise ValueError(f'layout "{text}": the centrepiece ({size}) has to fit in {col}x{row}')
+    return col, row, size
+
+
+def tile_size(col, aspect, canvas_width=DEFAULT_CANVAS_WIDTH, gap=DEFAULT_GAP):
+    """(width, height) of a tile when col of them (and their gaps) fill canvas_width."""
+    aspect_width, aspect_height = aspect
+    width = (canvas_width - gap * (col + 1)) // col
+    return width, round(width * aspect_height / aspect_width)
+
+
+def centre_size(row):
+    """The centrepiece for a number of rows: about half the height, rows - centre even, at least 1 row above and below."""
+    size = row - 2
+    while size > 0 and size / row > 0.67:
+        size -= 2
+    return max(size, 0)
+
+
+def describe(col, row, size, aspect, canvas_width=DEFAULT_CANVAS_WIDTH, gap=DEFAULT_GAP):
+    width, height = tile_size(col, aspect, canvas_width, gap)
+    canvas = (col * width + (col + 1) * gap, row * height + (row + 1) * gap)
+    cells = col * row - size * size
+    return {
+        "layout": f"{col}x{row}/{size}", "col": col, "row": row, "size": size,
+        "tile": (width, height), "canvas": canvas, "shape": canvas[0] / canvas[1],
+        # the centrepiece is an item too, it gets no cell of its own
+        "cells": cells, "needed": cells + (1 if size else 0),
+    }
+
+
+def layouts(aspect, canvas_width=DEFAULT_CANVAS_WIDTH, gap=DEFAULT_GAP, max_rows=12, max_cols=40):
+    """The even layouts with a centrepiece for this ratio, fewest items first."""
+    found = []
+    for row in range(3, max_rows + 1):
+        size = centre_size(row)
+        if not size:
+            continue
+        for col in range(size + 2, max_cols + 1, 2):
+            layout = describe(col, row, size, aspect, canvas_width, gap)
+            if min(layout["tile"]) < MIN_TILE:
+                break
+            if MIN_SHAPE <= layout["shape"] <= MAX_SHAPE:
+                found.append(layout)
+    return sorted(found, key=lambda layout: (layout["needed"], abs(layout["shape"] - IDEAL_SHAPE)))
+
+
+def auto_layout(aspect, items, canvas_width=DEFAULT_CANVAS_WIDTH, gap=DEFAULT_GAP):
+    """The largest layout items can fill (closest to a 16:10 screen when two are as large), else the smallest one."""
+    candidates = layouts(aspect, canvas_width, gap)
+    if not candidates:  # a ratio too narrow or too wide for any background: the default grid, with that ratio's tiles
+        return describe(*parse_layout(DEFAULT_LAYOUT), aspect, canvas_width, gap)
+    fitting = [layout for layout in candidates if layout["needed"] <= items]
+    if not fitting:
+        return candidates[0]
+    most = max(layout["needed"] for layout in fitting)
+    return min((layout for layout in fitting if layout["needed"] == most), key=lambda layout: abs(layout["shape"] - IDEAL_SHAPE))
+
+
+def resolve(collage, aspect, items, override=None):
+    """The grid to draw: { col, row, width, height, gap, scale, center: { col, row, size }, layout }.
+    override is --layout. Settings from before layouts (col, row, width, height, center) still win over the layout."""
+    gap = collage.get("gap", DEFAULT_GAP)
+    canvas_width = collage.get("canvasWidth", DEFAULT_CANVAS_WIDTH)
+    layout = override or collage.get("layout", DEFAULT_LAYOUT)
+    if layout == "auto":
+        picked = auto_layout(aspect, items, canvas_width, gap)
+        col, row, size = picked["col"], picked["row"], picked["size"]
+    else:
+        col, row, size = parse_layout(layout)
+
+    center = {}
+    width = height = None
+    if not override:
+        col, row = collage.get("col", col), collage.get("row", row)
+        center = dict(collage.get("center", {}))
+        size = center.get("size", size)
+        if "width" in collage and "height" in collage:
+            width, height = collage["width"], collage["height"]
+    if width is None:
+        width, height = tile_size(col, aspect, canvas_width, gap)
+    return {
+        "col": col, "row": row, "width": width, "height": height, "gap": gap, "scale": collage.get("scale", 1),
+        "center": {"col": center.get("col", (col - size) // 2), "row": center.get("row", (row - size) // 2), "size": size},
+        "layout": f"{col}x{row}/{size}",
+    }
+
+
+def grid_table(aspect, items, canvas_width=DEFAULT_CANVAS_WIDTH, gap=DEFAULT_GAP, limit=12):
+    """The text --grid prints: the layouts around the project's item count, the ones it can fill marked."""
+    candidates = layouts(aspect, canvas_width, gap)
+    fitting = [layout for layout in candidates if layout["needed"] <= items]
+    # the ones it fills plus the next few bigger ones
+    shown = fitting[-(limit - 3):] + [layout for layout in candidates if layout["needed"] > items][:3]
+    lines = [f"Layouts for {aspect[0]}:{aspect[1]} tiles, {items} items (--layout <layout> to try one):", "",
+             f"  {'layout':<9} {'items':>5}  {'tile':>9}  {'canvas':>9}  shape",]
+    for layout in shown:
+        mark = "✓" if layout["needed"] <= items else " "
+        lines.append(f"{mark} {layout['layout']:<9} {layout['needed']:>5}  {layout['tile'][0]:>4}x{layout['tile'][1]:<4}"
+                     f"  {layout['canvas'][0]:>4}x{layout['canvas'][1]:<4}  {layout['shape']:.2f}")
+    picked = auto_layout(aspect, items, canvas_width, gap)
+    lines += ["", f"auto picks {picked['layout']} - save one with \"collage\": {{ \"layout\": \"{picked['layout']}\" }} in projects.json"]
+    return "\n".join(lines)
