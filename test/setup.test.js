@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const os = require("node:os");
 const path = require("node:path");
 
-const { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, addProject, pickBlobs } = require("../scripts/setup");
+const { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, cronLinesFor, pickBlobs } = require("../scripts/setup");
 
 const ID = "37i9dQZF1DXcBWIGoYBM5M";
 
@@ -72,4 +72,43 @@ test("addProject adds or replaces a project and sets the default when there's no
     assert.deepEqual(second.local, first.local);
     assert.equal(addProject(second, "spotify", "chill", {}, { makeDefault: true }).default, "spotify/chill");
     assert.deepEqual(addProject(second, "local", "cats", { path: "~/new" }).local, { cats: { path: "~/new" } });
+});
+
+test("setDefault changes the default and keeps it first", () => {
+    const projects = { default: "local/cats", spotify: { album: {} }, local: { cats: {} } };
+    const changed = setDefault(projects, "spotify/album");
+    assert.equal(changed.default, "spotify/album");
+    assert.deepEqual(Object.keys(changed), ["default", "spotify", "local"]);
+    assert.deepEqual(changed.local, projects.local);
+});
+
+test("removeProject removes the project, an empty source and moves the default", () => {
+    const projects = { default: "local/cats", spotify: { album: {} }, local: { cats: {} } };
+    assert.deepEqual(removeProject(projects, "local", "cats"), { default: "spotify/album", spotify: { album: {} } });
+    assert.deepEqual(removeProject(projects, "spotify", "album"), { default: "local/cats", local: { cats: {} } });
+    assert.deepEqual(removeProject({ default: "local/cats", local: { cats: {} } }, "local", "cats"), {});
+});
+
+test("cronLinesFor finds the crontab lines that run a project", () => {
+    const crontab = [
+        "MAILTO=me",
+        "0 8 * * * /a/cron.sh daily-new -p local/cats >> /a/daily.log 2>&1",
+        "# 0 9 * * * /a/cron.sh collage -p cats",
+        "0 * * * * /a/cron.sh random-meet --fill",
+        "5 * * * * /a/cron.sh collage -s spotify",
+        "6 * * * * /a/cron.sh collage -s local",
+        "1 1 * * * /a/cron.sh full -p catsy",
+        "2 2 * * * /a/cron.sh collage --project=cats",
+        "3 3 * * * cd /x && npm run collage -- -p cats",
+        "4 4 * * * /usr/bin/backup cats",
+    ].join("\n");
+    const cats = { source: "local", name: "cats" };
+    assert.deepEqual(cronLinesFor(crontab, cats, false), [
+        "0 8 * * * /a/cron.sh daily-new -p local/cats >> /a/daily.log 2>&1",
+        "2 2 * * * /a/cron.sh collage --project=cats",
+    ]);
+    // the default project also runs without -p
+    assert.deepEqual(cronLinesFor(crontab, cats, true).length, 4);
+    assert.deepEqual(cronLinesFor("", cats, true), []);
+    assert.deepEqual(cronLinesFor(null, cats, true), []);
 });

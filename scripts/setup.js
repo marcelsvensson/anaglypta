@@ -58,11 +58,51 @@ const parseFolderInput = (input) => {
     return expandHome(quoted ? quoted[2] : text.replace(/\\(.)/g, "$1"));
 };
 
+// projects.json with id ("source/name") as the default, kept first in the file
+const setDefault = (projects, id) => {
+    const { default: _, ...rest } = projects;
+    return { default: id, ...rest };
+};
+
 // projects.json with source/name added (replacing one with that name), the default when asked or when there's none yet
 const addProject = (projects, source, name, entry, { makeDefault = false } = {}) => {
-    const { default: current, ...rest } = projects;
-    const id = makeDefault || !current ? `${source}/${name}` : current;
-    return { default: id, ...rest, [source]: { ...rest[source], [name]: entry } };
+    const id = makeDefault || !projects.default ? `${source}/${name}` : projects.default;
+    return setDefault({ ...projects, [source]: { ...projects[source], [name]: entry } }, id);
+};
+
+// projects.json without source/name (and without its source when that was its last project). When it was the default,
+// the first project left is the new one
+const removeProject = (projects, source, name) => {
+    const { [name]: _, ...left } = projects[source] ?? {};
+    const next = { ...projects, [source]: left };
+    if (!Object.keys(left).length) {
+        delete next[source];
+    }
+    if (next.default !== `${source}/${name}`) {
+        return next;
+    }
+    const first = Object.entries(next)
+        .filter(([key]) => key !== "default")
+        .flatMap(([s, list]) => Object.keys(list).map((n) => `${s}/${n}`))[0];
+    if (first) {
+        return setDefault(next, first);
+    }
+    delete next.default;
+    return next;
+};
+
+// the crontab lines (`crontab -l`) that run cron.sh for this project: ones naming it (-p name, -p source/name),
+// and for the default project the ones without -p (with no -s, or -s for its source)
+const cronLinesFor = (crontab, { source, name }, isDefault) => {
+    const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const names = new RegExp(`(^|[\\s/=])${escape(name)}(?=\\s|$)`);
+    const anyProject = /(^|\s)(-p|--project)([\s=]|$)/;
+    const sourceFlag = /(^|\s)(?:-s|--source)[\s=](\S+)/;
+    return String(crontab ?? "").split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line && !line.startsWith("#") && /cron\.sh(\s|$)/.test(line))
+        .filter((line) => names.test(line)
+            || (isDefault && !anyProject.test(line) && [undefined, source].includes(line.match(sourceFlag)?.[2])));
 };
 
 // the two files Chrome writes when you upload a Meet background: of the files changed since `since`, the largest is the
@@ -305,6 +345,15 @@ const setupMeet = async (input, project) => {
 
 // --- projects ---
 
+// `crontab -l`, "" when there's no crontab, null when there's no crontab command (windows)
+const readCrontab = () => {
+    const result = spawnSync("crontab", ["-l"], { encoding: "utf8" });
+    if (result.error) {
+        return null;
+    }
+    return result.status === 0 ? result.stdout : "";
+};
+
 const SOURCES = {
     spotify: "the album covers of a Spotify playlist",
     local: "the images in a folder on this computer",
@@ -439,6 +488,9 @@ const setupSpotify = async (input, todo) => {
         ok("CLIENT_SECRET is set (app mode, only works for apps created before 2026)");
     } else if (!env.CLIENT_ID) {
         todo.push("Log in to Spotify: `npm run auth` (after adding CLIENT_ID)");
+    } else if (!process.stdin.isTTY) {
+        // the login opens a browser and waits for it, only when someone is at the terminal
+        todo.push("Log in to Spotify: `npm run auth`");
     } else {
         const answer = await input.ask("\n  Log in to Spotify now? [Y/n] ");
         if (answer !== null && !/^n/i.test(answer.trim()) && run(process.execPath, [path.join(__dirname, "auth.js")]).status === 0) {
@@ -478,39 +530,133 @@ const main = async () => {
     ensureEnvFile();
     const input = createInput();
     const settings = readSettings();
-    let projects = readProjects();
-    const existing = listProjects(settings, projects);
-    const ids = (list) => list.map(({ source, name }) => `${source}/${name}`).join(", ");
+    const sources = Object.keys(settings.sources);
+    const ids = () => listProjects(settings, readProjects()).map(({ source, name }) => `${source}/${name}`);
+    let spotifyDone = false;
+    let added = null;
 
-    let source = null;
-    if (existing.length) {
-        ok(`Projects: ${ids(existing)} (default: ${defaultId() ?? "none - set \"default\" in projects.json"})`);
-        if (isYes(await input.ask("\n  Add another project? [y/N] "))) {
-            source = await askSource(input, Object.keys(settings.sources));
+    const spotify = async () => {
+        if (!spotifyDone) {
+            await setupSpotify(input, todo);
+            spotifyDone = true;
         }
-    } else {
-        console.log("\n  Let's add your first project.");
-        source = await askSource(input, Object.keys(settings.sources));
+    };
+
+    // a number from the list, or source/name
+    const pickProject = (question) => {
+        const list = ids();
+        return askUntil(input, `  ${question} [1-${list.length}, empty to ${list.length > 1 ? "cancel" : "skip"}]: `,
+            (answer) => list[Number(answer.trim()) - 1] ?? list.find((id) => id === answer.trim()),
+            `Pick a number from 1 to ${list.length}`);
+    };
+
+    const add = async () => {
+        const source = await askSource(input, sources);
         if (!source) {
-            todo.push("Add a project: `npm run setup`");
+            return;
         }
+        if (source === "spotify") {
+            await spotify();
+        }
+        const projects = readProjects();
+        const project = await (source === "spotify" ? askSpotifyProject : askLocalProject)(input, projects);
+        if (!project) {
+            return;
+        }
+        const makeDefault = ids().length > 0 && isYes(await input.ask(`  Make ${source}/${project.name} the default project? [y/N] `));
+        writeProjects(addProject(projects, source, project.name, project.entry, { makeDefault }));
+        ok(`Added ${source}/${project.name} to projects.json`);
+        added = { source, project: project.name };
+    };
+
+    const changeDefault = async () => {
+        const id = await pickProject("Default project");
+        if (id) {
+            writeProjects(setDefault(readProjects(), id));
+            ok(`${id} is the default project`);
+        }
+    };
+
+    const remove = async () => {
+        const id = await pickProject("Remove project");
+        if (!id) {
+            return;
+        }
+        const project = getProject({ project: id });
+        const isDefault = id === defaultId();
+        const crontab = readCrontab();
+        const lines = cronLinesFor(crontab, project, isDefault);
+        if (lines.length) {
+            warn(`Your crontab (crontab -l) runs ${id}${isDefault ? ", it's the default project" : ""}:`);
+            console.log(lines.map((line) => `      ${line}`).join("\n"));
+            console.log("    Remove or change those lines first (`crontab -e`, in another terminal), or they fail from now on.");
+        } else if (crontab !== null) {
+            ok(`Nothing in your crontab (crontab -l) runs ${id}`);
+        }
+        console.log(`\n  This deletes ${project.folder}/ (what was fetched, the images and collages) and removes it from projects.json.`);
+        if (project.source === "local" && project.path) {
+            console.log(`  Your images in ${tilde(project.path)} aren't touched.`);
+        }
+        if (!isYes(await input.ask(`  Remove ${id}? [y/N] `))) {
+            ok("Nothing removed");
+            return;
+        }
+        fs.rmSync(project.dir, { recursive: true, force: true });
+        const sourceDir = path.dirname(project.dir);
+        if (fs.existsSync(sourceDir) && !fs.readdirSync(sourceDir).length) {
+            fs.rmdirSync(sourceDir);
+        }
+        const next = removeProject(readProjects(), project.source, project.name);
+        writeProjects(next);
+        ok(`Removed ${id}`);
+        if (isDefault && next.default) {
+            ok(`${next.default} is the default project now`);
+        }
+        if (added && `${added.source}/${added.project}` === id) {
+            added = null;
+        }
+    };
+
+    if (ids().some((id) => id.startsWith("spotify/"))) {
+        await spotify();
     }
 
-    if (source === "spotify" || existing.some((project) => project.source === "spotify")) {
-        await setupSpotify(input, todo);
-    }
-
-    const added = source && await (source === "spotify" ? askSpotifyProject : askLocalProject)(input, projects);
-    if (added) {
-        const makeDefault = existing.length > 0 && isYes(await input.ask(`  Make ${source}/${added.name} the default project? [y/N] `));
-        projects = addProject(projects, source, added.name, added.entry, { makeDefault });
-        writeProjects(projects);
-        ok(`Added ${source}/${added.name} to projects.json`);
-    } else if (source) {
-        todo.push("Add a project: `npm run setup`");
+    if (!ids().length) {
+        console.log("\n  Let's add your first project.");
+        await add();
+    } else {
+        for (;;) {
+            const list = ids();
+            if (!list.length) {
+                break;
+            }
+            const current = defaultId();
+            ok("Projects:");
+            console.log(list.map((id, i) => `    ${i + 1}. ${id}${id === current ? " (default)" : ""}`).join("\n"));
+            if (!current) {
+                warn("No default project (the one used without -p) - pick one");
+                await changeDefault();
+            }
+            const choices = ["[a]dd a project", ...(list.length > 1 ? ["change the [d]efault"] : []), "[r]emove one"];
+            const answer = await input.ask(`\n  ${choices.join(", ")}, or Enter when done: `);
+            const choice = answer?.trim().toLowerCase()[0];
+            if (!choice) {
+                break;
+            }
+            const action = { a: add, d: list.length > 1 && changeDefault, r: remove }[choice];
+            if (action) {
+                await action();
+            } else {
+                warn(`Type ${list.length > 1 ? "a, d or r" : "a or r"}`);
+            }
+            console.log();
+        }
     }
     input.close();
 
+    if (!ids().length) {
+        todo.push("Add a project: `npm run setup`");
+    }
     if (todo.length) {
         console.log(`\nAlmost there, still to do:\n${todo.map((item) => `  - ${item}`).join("\n")}`);
         console.log("Then run `npm run setup` again to check.");
@@ -518,7 +664,7 @@ const main = async () => {
         return;
     }
 
-    const project = getProject(added ? { source, project: added.name } : {});
+    const project = getProject(added ?? {});
     const flags = project.id === defaultId() ? "" : ` -- -p ${project.id}`;
     const pad = (command) => command.padEnd(flags.length + 20);
     console.log(`\n✅ All set! Next, for ${project.id}:`);
@@ -537,4 +683,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, addProject, pickBlobs };
+module.exports = { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, cronLinesFor, pickBlobs };
