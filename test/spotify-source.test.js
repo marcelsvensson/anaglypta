@@ -3,7 +3,9 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { buildFrontmatter, filterNewItems, collectNewAlbums, freeSlots, parseLimit, fileNameFor, readKnownIds } = require("../scripts/generate");
+const { toItem, knownFrom, filterNewItems, collectNewAlbums, freeSlots, fetchSpotify } = require("../scripts/sources/spotify");
+const { parseLimit } = require("../scripts/fetch");
+const { readData, writeData } = require("../scripts/project");
 const { normalizePage } = require("../api/spotify");
 const fixture = require("./fixtures/playlist-items.json");
 
@@ -23,54 +25,26 @@ const entry = (overrides = {}) => ({
     },
 });
 
-// reads the frontmatter the way parse_frontmatter in scripts/common.py does:
-// quoted values are JSON strings, unquoted ones are taken as-is, "- item" lines form the tags list
-const matter = (text) => {
-    const data = {};
-    let list = null;
-    for (const line of text.split("\n").slice(1, -1)) {
-        const item = line.match(/^\s*- (.*)$/);
-        if (item) {
-            list.push(JSON.parse(item[1]));
-            continue;
-        }
-        const [, key, value] = line.match(/^\s*(\w+):\s?(.*)$/);
-        data[key] = value === "" ? (list = []) : value === "[]" ? [] : value.startsWith("\"") ? JSON.parse(value) : value;
-    }
-    return { data };
-};
-
-test("buildFrontmatter round-trips every fixture album", () => {
-    for (const item of normalizePage(fixture).items) {
-        const data = matter(buildFrontmatter(item, ["metal", "r&b"])).data;
-        assert.equal(data.album, item.track.album.name);
-        assert.equal(data.artist, item.track.album.artists[0].name);
-        assert.equal(data.song, item.track.name);
-        assert.equal(data.id, item.track.id);
-        assert.deepEqual(data.tags, ["metal", "r&b"]);
+test("toItem makes one item per album from every fixture song", () => {
+    for (const entry of normalizePage(fixture).items) {
+        const item = toItem(entry);
+        assert.equal(item.id, entry.track.album.id);
+        assert.equal(item.trackId, entry.track.id);
+        assert.equal(item.title, entry.track.album.name);
+        assert.equal(item.subtitle, entry.track.album.artists[0].name);
+        assert.equal(item.addedAt, entry.added_at);
     }
 });
 
-test("buildFrontmatter keeps quotes, colons, html and unicode intact", () => {
-    const tricky = entry({
-        name: "Song: \"Live\" — part 2",
-        album: { ...entry().track.album, name: "\"Heroes\": <Live> Ö", artists: [{ name: "Guns N' Roses: Live", id: "x" }] },
-    });
-    const data = matter(buildFrontmatter(tricky, [])).data;
-    assert.equal(data.song, "Song: \"Live\" — part 2");
-    assert.equal(data.album, "\"Heroes\": <Live> Ö");
-    assert.equal(data.artist, "Guns N' Roses: Live");
-    assert.equal(data.release, "1999-12-31");
+test("toItem takes the largest cover and copes without one", () => {
+    assert.equal(toItem(entry()).source, "https://i.scdn.co/image/abc");
+    assert.equal(toItem(entry({ album: { ...entry().track.album, images: [] } })).source, "");
 });
 
-test("buildFrontmatter writes empty genres as an empty list", () => {
-    const data = matter(buildFrontmatter(entry(), [])).data;
-    assert.deepEqual(data.tags, []);
-});
-
-test("buildFrontmatter leaves the images line unquoted for the python scripts", () => {
-    const line = buildFrontmatter(entry(), []).split("\n").find((l) => l.startsWith("    images: "));
-    assert.equal(line, "    images: https://i.scdn.co/image/abc");
+test("knownFrom reads track and album ids from items", () => {
+    const known = knownFrom([{ id: "A", trackId: "t1" }, { id: "B" }]);
+    assert.deepEqual([...known.trackIds], ["t1"]);
+    assert.deepEqual([...known.albumIds], ["A", "B"]);
 });
 
 const song = (id, albumId) => ({ track: { id, album: { id: albumId, name: `Album ${albumId}` } } });
@@ -90,27 +64,6 @@ test("filterNewItems keeps one song per album, the first one wins", () => {
     assert.deepEqual(kept.map(({ track }) => track.id), ["s2", "s4"]);
     assert.deepEqual(skipped, ["s1", "s3"]);
     assert.deepEqual([...known.albumIds].sort(), ["NEW", "OLD", "OTHER"]);
-});
-
-test("fileNameFor numbers albums added on the same day", () => {
-    const existing = new Set(["2026-01-01.md", "2026-01-01-0.md"]);
-    const exists = (name) => existing.has(name);
-    assert.equal(fileNameFor("2026-01-02", exists), "2026-01-02.md");
-    assert.equal(fileNameFor("2026-01-01", exists), "2026-01-01-1.md");
-});
-
-test("readKnownIds reads track and album ids from old and new album files", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
-    try {
-        fs.writeFileSync(path.join(dir, "old.md"), "---\n    artistId: x\n    albumId: oldAlbum\n    id: oldId123\n---");
-        fs.writeFileSync(path.join(dir, "new.md"), buildFrontmatter(entry({ id: "newId456" }), []));
-        fs.writeFileSync(path.join(dir, "notes.txt"), "id: ignored");
-        const known = readKnownIds(dir);
-        assert.deepEqual([...known.trackIds].sort(), ["newId456", "oldId123"]);
-        assert.deepEqual([...known.albumIds].sort(), ["album1", "oldAlbum"]);
-    } finally {
-        fs.rmSync(dir, { recursive: true, force: true });
-    }
 });
 
 // a fake playlist in the raw 2026 /items shape, served in pages of 5 like spotify.getPlaylistItems
@@ -188,7 +141,7 @@ test("collectNewAlbums doesn't restart when the playlist only grew", async () =>
     assert.deepEqual(albumIdsOf(result), ["C"]);
 });
 
-test("freeSlots counts the room left under maxAlbums", () => {
+test("freeSlots counts the room left under maxItems", () => {
     const withAlbums = (n) => known(Array.from({ length: n }, (_, i) => `a${i}`));
     assert.equal(freeSlots(200, withAlbums(0)), 200);
     assert.equal(freeSlots(200, withAlbums(199)), 1);
@@ -197,9 +150,60 @@ test("freeSlots counts the room left under maxAlbums", () => {
 });
 
 test("parseLimit reads --limit", () => {
-    assert.equal(parseLimit(["node", "generate.js"]), Infinity);
-    assert.equal(parseLimit(["node", "generate.js", "--limit", "1"]), 1);
+    assert.equal(parseLimit([]), Infinity);
+    assert.equal(parseLimit(["--limit", "1"]), 1);
     for (const bad of [["--limit"], ["--limit", "0"], ["--limit", "one"], ["--limit", "1.5"]]) {
         assert.throws(() => parseLimit(bad), /--limit needs a whole number/);
     }
+});
+
+// a fake api/spotify.js serving raw songs, and a project in a temp dir
+const fakeSpotify = (raw) => ({
+    getPlaylistMeta: async (id) => ({ name: `Playlist ${id}`, url: "https://open.spotify.com/playlist/x" }),
+    getPlaylistItems: async (id, position) => pagesOf(raw)(position),
+});
+const withProject = async (overrides, run) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
+    const project = { source: "spotify", name: "album", id: "spotify/album", playlistId: "P".repeat(22), maxItems: 200,
+        dir: path.join(root, "projects", "spotify", "album"), ...overrides };
+    const log = console.log;
+    console.log = () => {};
+    try {
+        await run(project);
+    } finally {
+        console.log = log;
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+};
+
+test("fetchSpotify adds new albums to items.json and continues where it stopped", async () => {
+    const raw = ["A", "B", "A", "C"].map((album, i) => rawSong(`s${i}`, album));
+    await withProject({}, async (project) => {
+        await fetchSpotify(project, { limit: 1, spotify: fakeSpotify(raw) });
+        let data = readData(project);
+        assert.deepEqual(data.items.map((item) => item.id), ["A"]);
+        assert.equal(data.state.playlistOffset, 1);
+        assert.equal(data.state.playlist.name, `Playlist ${"P".repeat(22)}`);
+
+        await fetchSpotify(project, { spotify: fakeSpotify(raw) });
+        data = readData(project);
+        assert.deepEqual(data.items.map((item) => item.id), ["A", "B", "C"]);
+        assert.equal(data.state.playlistOffset, 4);
+        assert.equal(data.state.playlistTotal, 4);
+    });
+});
+
+test("fetchSpotify stops at maxItems", async () => {
+    const raw = ["A", "B", "C"].map((album, i) => rawSong(`s${i}`, album));
+    await withProject({ maxItems: 2 }, async (project) => {
+        writeData(project, { items: [{ id: "OLD", trackId: "old" }] });
+        await fetchSpotify(project, { spotify: fakeSpotify(raw) });
+        assert.deepEqual(readData(project).items.map((item) => item.id), ["OLD", "A"]);
+    });
+});
+
+test("fetchSpotify needs a playlist", async () => {
+    await withProject({ playlistId: null }, async (project) => {
+        await assert.rejects(fetchSpotify(project, { spotify: fakeSpotify([]) }), /isn't a playlist link or id/);
+    });
 });

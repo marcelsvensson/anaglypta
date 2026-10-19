@@ -1,4 +1,4 @@
-// spotify web api client - reads its settings from process.env, the entry points (generate.js, auth.js) load .env
+// spotify web api client - reads its settings from process.env, the entry points (fetch.js, auth.js) load .env
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -111,18 +111,16 @@ const request = async (url, attempt = 1) => {
   return response.json();
 };
 
-const getArtist = (id) => request(`${API_URL}/artists/${id}`);
-
-const getPlaylistMeta = async () => {
+const getPlaylistMeta = async (playlistId) => {
   const query = new URLSearchParams({ fields: "name,external_urls,owner(display_name)", ...market() });
-  const { name, external_urls, owner } = await request(`${API_URL}/playlists/${env("PLAYLIST_ID")}?${query}`);
+  const { name, external_urls, owner } = await request(`${API_URL}/playlists/${playlistId}?${query}`);
   return { name, url: external_urls?.spotify, owner: owner?.display_name };
 };
 
 // returns normalizePage() of one page of the playlist
-const getPlaylistItems = async (offset = 0) => {
+const getPlaylistItems = async (playlistId, offset = 0) => {
   const query = new URLSearchParams({ offset, limit: 100, ...market() });
-  const playlistUrl = `${API_URL}/playlists/${env("PLAYLIST_ID")}`;
+  const playlistUrl = `${API_URL}/playlists/${playlistId}`;
 
   let page;
   try {
@@ -166,7 +164,6 @@ module.exports = {
   env,
   postToken,
   saveTokenFile,
-  getArtist,
   getPlaylistMeta,
   getPlaylistItems,
   normalizePage,
