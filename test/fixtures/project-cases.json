@@ -1,0 +1,53 @@
+{
+  "settings": {
+    "default": "spotify/album",
+    "defaults": {
+      "maxItems": 200,
+      "imageSize": 640,
+      "collage": { "col": 13, "row": 9, "gap": 8, "center": { "col": 4, "row": 2, "size": 5 }, "skip": [[12, 8]] }
+    },
+    "sources": { "spotify": {}, "local": { "maxItems": 100 } }
+  },
+  "projects": {
+    "default": "local/cats",
+    "spotify": {
+      "album": { "playlist": "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=x", "maxItems": 50 },
+      "cats": { "playlist": "37i9dQZF1DXcBWIGoYBM5M", "collage": { "skip": [] } }
+    },
+    "local": {
+      "cats": { "path": "/pics/cats", "collage": { "center": { "size": 3 } } },
+      "dogs": { "path": "/pics/dogs", "maxItems": 30 },
+      "Bad_Name": { "path": "/pics/bad" }
+    }
+  },
+  "cases": [
+    {
+      "flags": {},
+      "expected": {
+        "source": "local", "name": "cats", "id": "local/cats", "folder": "projects/local/cats", "path": "/pics/cats",
+        "maxItems": 100, "imageSize": 640,
+        "collage": { "col": 13, "row": 9, "gap": 8, "center": { "col": 4, "row": 2, "size": 3 }, "skip": [[12, 8]] }
+      }
+    },
+    {
+      "flags": { "project": "album" },
+      "expected": { "source": "spotify", "name": "album", "maxItems": 50, "playlistId": "37i9dQZF1DXcBWIGoYBM5M" }
+    },
+    {
+      "flags": { "project": "spotify/cats" },
+      "expected": {
+        "source": "spotify", "name": "cats", "playlistId": "37i9dQZF1DXcBWIGoYBM5M",
+        "collage": { "col": 13, "row": 9, "gap": 8, "center": { "col": 4, "row": 2, "size": 5 }, "skip": [] }
+      }
+    },
+    { "flags": { "source": "local", "project": "cats" }, "expected": { "source": "local", "name": "cats" } },
+    { "flags": { "source": "spotify" }, "expected": { "source": "spotify", "name": "album" } },
+    { "flags": { "source": "local" }, "expected": { "source": "local", "name": "cats" } },
+    { "flags": { "project": "dogs" }, "expected": { "source": "local", "name": "dogs", "maxItems": 30 } },
+    { "flags": { "project": "cats" }, "error": "pick one with --source" },
+    { "flags": { "project": "nope" }, "error": "Unknown project" },
+    { "flags": { "source": "instagram" }, "error": "Unknown source" },
+    { "flags": { "source": "local", "project": "spotify/album" }, "error": "doesn't match" },
+    { "flags": { "project": "Bad_Name" }, "error": "lowercase letters" }
+  ]
+}

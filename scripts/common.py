@@ -1,4 +1,5 @@
-"""Shared helpers for collage.py."""
+"""Shared helpers for collage.py and the sources: projects (the twin of scripts/project.js) and the square image cache."""
+import io
 import json
 import re
 import sys
@@ -6,13 +7,20 @@ import time
 import urllib.request
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
+
+try:  # HEIC/HEIF photos (iPhone), installed by `npm run setup:python`
+    import pillow_heif
+
+    pillow_heif.register_heif_opener()
+    HEIF = True
+except ImportError:
+    HEIF = False
 
 ROOT = Path(__file__).resolve().parent.parent
-TMP = ROOT / "tmp"
 USER_AGENT = "anaglypta/1.0"
-
-ALBUM_FILE = re.compile(r"^(\d{4}-\d{2}-\d{2})(?:-(\d+))?\.md$")
+NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+PLAYLIST = re.compile(r"playlist[/:]([A-Za-z0-9]{22})(?![A-Za-z0-9])")
 
 
 def warn(message):
@@ -20,108 +28,196 @@ def warn(message):
     print(f"⚠️  {message}", file=sys.stderr)
 
 
-def load_settings(provider):
-    with open(ROOT / "settings.json", encoding="utf-8") as f:
-        settings = json.load(f)
-    if provider not in settings:
-        sys.exit(f"Unknown provider '{provider}' - expected one of: {', '.join(settings)} (see settings.json)")
-    return settings[provider]
+def read_json(path, fallback):
+    if not path.exists():
+        return fallback
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
 
 
-def album_sort_key(file_name):
-    """<date>.md, then <date>-0.md, <date>-1.md ... (a plain string sort puts -0 first)"""
-    match = ALBUM_FILE.match(file_name)
-    if not match:
-        return (file_name, -1)
-    date, suffix = match.groups()
-    return (date, -1 if suffix is None else int(suffix))
+def write_json(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
 
 
-def parse_frontmatter(text):
-    """Reads the flat `key: value` lines written by generate.js, list items (tags) are skipped."""
-    data = {}
-    lines = text.splitlines()
-    if not lines or lines[0].strip() != "---":
-        return data
-    for line in lines[1:]:
-        stripped = line.strip()
-        if stripped == "---":
-            break
-        key, separator, value = stripped.partition(":")
-        if not separator or stripped.startswith("-"):
-            continue
-        value = value.strip()
-        if value.startswith('"'):
-            try:
-                value = json.loads(value)
-            except json.JSONDecodeError:
-                value = value.strip('"')
-        data[key] = value
-    return data
+# --- projects, the same rules as scripts/project.js ---
+
+def parse_playlist_id(text):
+    text = str(text or "").strip()
+    match = PLAYLIST.search(text) or re.fullmatch(r"([A-Za-z0-9]{22})", text)
+    return match.group(1) if match else None
 
 
-def album_key(album):
-    """Albums are unique by albumId (older files without one fall back to the track id)."""
-    return album.get("albumId") or album.get("id") or album["file"]
+def deep_merge(*layers):
+    """Dicts merge key by key (collage.center too), anything else (numbers, lists like skip) is replaced."""
+    merged = {}
+    for layer in layers:
+        for key, value in (layer or {}).items():
+            if isinstance(value, dict) and isinstance(merged.get(key), dict):
+                merged[key] = deep_merge(merged[key], value)
+            else:
+                merged[key] = value
+    return merged
 
 
-def read_albums(project):
-    """All albums in <project>/data/*.md, oldest first, one per album (the first song added wins)."""
-    folder = ROOT / project / "data"
-    if not folder.is_dir():
-        return []
-    files = sorted((f for f in folder.iterdir() if f.suffix == ".md"), key=lambda f: album_sort_key(f.name))
-    albums = []
+def split_id(project_id):
+    """'spotify/album' -> ('spotify', 'album'), 'album' -> (None, 'album')"""
+    first, separator, second = str(project_id or "").partition("/")
+    return (first, second) if separator else (None, first or None)
+
+
+def resolve_project(settings, projects, source=None, project=None, root=ROOT):
+    """settings.json + projects.json + the --source/--project flags (both optional) -> the project, ValueError if unknown."""
+    sources = list(settings.get("sources", {}))
+    everything = [(s, name) for s in sources for name in projects.get(s, {})]
+    add = "add one with `npm run setup`"
+
+    if project and "/" in project:
+        split_source, project = split_id(project)
+        if source and source != split_source:
+            raise ValueError(f"--source {source} doesn't match --project {split_source}/{project}")
+        source = split_source
+    if source and source not in sources:
+        raise ValueError(f"Unknown source \"{source}\" - the sources are: {', '.join(sources)}")
+
+    if not project:
+        fallback_source, fallback_project = split_id(projects.get("default") or settings.get("default"))
+        if not source or source == fallback_source:
+            source, project = fallback_source, fallback_project
+        else:
+            project = next(iter(projects.get(source, {})), None)
+            if not project:
+                raise ValueError(f"No {source} projects in projects.json - {add}")
+    elif not source:
+        matches = [s for s, name in everything if name == project]
+        if len(matches) > 1:
+            raise ValueError(f"\"{project}\" is a project in {' and '.join(matches)} - pick one with --source")
+        source = matches[0] if matches else None
+
+    entry = projects.get(source, {}).get(project) if source else None
+    if entry is None:
+        known = ", ".join(f"{s}/{name}" for s, name in everything) or "none yet"
+        raise ValueError(f"Unknown project \"{source + '/' if source else ''}{project}\" - the projects in projects.json are: {known} ({add})")
+    if not NAME.match(project):
+        raise ValueError(f"Project name \"{project}\" can only have lowercase letters, digits and - (it's a folder name)")
+
+    merged = deep_merge(settings.get("defaults"), settings["sources"][source], entry)
+    folder = f"projects/{source}/{project}"
+    resolved = {**merged, "source": source, "name": project, "id": f"{source}/{project}", "folder": folder, "dir": Path(root) / folder}
+    if source == "spotify":
+        resolved["playlistId"] = parse_playlist_id(merged.get("playlist"))
+    if source == "local" and merged.get("path"):
+        resolved["path"] = str(Path(merged["path"]).expanduser())
+    return resolved
+
+
+def load_project(source=None, project=None):
+    """The project from settings.json + projects.json, exits with the reason when it's unknown."""
+    try:
+        return resolve_project(read_json(ROOT / "settings.json", {}), read_json(ROOT / "projects.json", {}), source, project, ROOT)
+    except ValueError as error:
+        sys.exit(f"❌ {error}")
+
+
+def add_project_args(parser):
+    parser.add_argument("-s", "--source", help="the image source (spotify, local), default: the default project's")
+    parser.add_argument("-p", "--project", help="the project name (or source/name), default: the default project")
+
+
+def items_path(project):
+    return project["dir"] / "items.json"
+
+
+def read_data(project):
+    """items.json: { source, project, state, items }, empty when the project hasn't been fetched yet."""
+    data = read_json(items_path(project), {})
+    return {**data, "source": project["source"], "project": project["name"], "state": data.get("state", {}), "items": data.get("items", [])}
+
+
+def write_data(project, data):
+    write_json(items_path(project), data)
+
+
+def read_items(project):
+    """The project's items, oldest first, each id once (the first one wins)."""
+    items = []
     seen = set()
-    for file in files:
-        album = parse_frontmatter(file.read_text(encoding="utf-8"))
-        album["file"] = file.name
-        if album_key(album) in seen:
-            continue
-        seen.add(album_key(album))
-        albums.append(album)
-    return albums
+    for item in read_data(project)["items"]:
+        if item.get("id") and item["id"] not in seen:
+            seen.add(item["id"])
+            items.append(item)
+    return items
 
 
-def cover_path(project, album):
-    """One cached cover per album, shared by every project."""
-    return TMP / "covers" / f"{album_key(album)}.jpeg"
+# --- the square image cache: projects/<source>/<name>/images/<id>.jpg ---
+
+def image_path(project, item):
+    return project["dir"] / "images" / f"{item['id']}.jpg"
 
 
-def ensure_cover(project, album, retries=3):
-    """Path to the cached cover, downloading it first if needed. None if it can't be fetched."""
-    path = cover_path(project, album)
+def label(item):
+    return item.get("title") or item["id"]
+
+
+def square(image, size):
+    """Turned upright (EXIF), RGB, cropped to a centred square and resized to size x size - never stretched."""
+    image = ImageOps.exif_transpose(image)
+    return ImageOps.fit(image.convert("RGB"), (size, size), Image.Resampling.LANCZOS)
+
+
+def download(url, retries=3):
+    for attempt in range(1, retries + 1):
+        try:
+            request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+            with urllib.request.urlopen(request, timeout=15) as response:
+                return response.read()
+        except Exception:  # network and http errors alike
+            if attempt == retries:
+                raise
+            time.sleep(attempt)
+
+
+def open_source(source, retries=3):
+    """The item's image: downloaded when source is a url, else read from the file."""
+    if source.startswith(("http://", "https://")):
+        image = Image.open(io.BytesIO(download(source, retries)))
+    else:
+        image = Image.open(source)
+    image.load()
+    return image
+
+
+def ensure_image(project, item, retries=3):
+    """Path to the item's square image, made first if needed. None if the source can't be read."""
+    path = image_path(project, item)
     if path.exists():
         return path
 
-    url = album.get("images")
-    if not url:
-        warn(f"No image url in {album['file']}")
+    source = item.get("source")
+    if not source:
+        warn(f"No image for {label(item)}")
+        return None
+    try:
+        with open_source(source, retries) as image:
+            squared = square(image, project.get("imageSize", 640))
+    except Exception as error:  # network errors and broken or unknown images alike
+        hint = " (HEIC needs `npm run setup:python`)" if not HEIF and source.lower().endswith((".heic", ".heif")) else ""
+        warn(f"Could not read the image for {label(item)}: {error}{hint}")
         return None
 
     path.parent.mkdir(parents=True, exist_ok=True)
     part = path.with_suffix(".part")
-    for attempt in range(1, retries + 1):
-        try:
-            request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(request, timeout=15) as response, open(part, "wb") as f:
-                f.write(response.read())
-            with Image.open(part) as image:
-                image.verify()
-            part.replace(path)
-            return path
-        except Exception as error:  # network/http errors and broken images alike
-            part.unlink(missing_ok=True)
-            if attempt == retries:
-                warn(f"Could not download the cover for {album['file']}: {error}")
-                return None
-            time.sleep(attempt)
+    squared.save(part, "JPEG", quality=90)
+    part.replace(path)
+    return path
 
 
-def load_cover(path, width, height, scale):
-    """The cover shrunk to width x height, then blown up x scale without smoothing (pixel art)."""
+def load_tile(path, width, height, scale):
+    """The image cropped to width x height, then blown up x scale without smoothing (pixel art)."""
     with Image.open(path) as image:
-        small = image.convert("RGB").resize((width, height))
+        small = ImageOps.fit(image.convert("RGB"), (width, height), Image.Resampling.LANCZOS)
     return small.resize((width * scale, height * scale), Image.Resampling.NEAREST)
 
 

@@ -1,6 +1,5 @@
 """Smoke test: renders a collage in a temp folder, with solid colour covers in the cache (no network)."""
 import io
-import json
 import sys
 import tempfile
 import unittest
@@ -16,42 +15,40 @@ import collage  # noqa: E402
 import common  # noqa: E402
 
 COLOURS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-SETTINGS = {
-    "project": "album",
-    "collage": {"col": 4, "row": 3, "width": 10, "height": 10, "scale": 1, "gap": 2,
-                "center": {"col": 1, "row": 1, "size": 1}, "skip": []},
-}
+COLLAGE = {"col": 4, "row": 3, "width": 10, "height": 10, "scale": 1, "gap": 2,
+           "center": {"col": 1, "row": 1, "size": 1}, "skip": []}
 
 
 class RenderTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         root = Path(self.tmp.name)
-        (root / "album" / "data").mkdir(parents=True)
-        (root / "tmp").mkdir()
-        (root / "tmp" / "covers").mkdir()
+        self.dir = root / "projects" / "spotify" / "album"
+        self.project = {"source": "spotify", "name": "album", "id": "spotify/album", "dir": self.dir, "collage": COLLAGE}
+        self.items = []
         for i, colour in enumerate(COLOURS):
-            self.write_album(root, f"2026-01-0{i + 1}.md", f"album{i}", f"track{i}")
-            Image.new("RGB", (8, 8), colour).save(root / "tmp" / "covers" / f"album{i}.jpeg")
-        # another song from the first album, added later - must not get a tile of its own
-        self.write_album(root, "2026-01-04.md", "album0", "track9")
+            self.add_item(f"album{i}", colour)
+        # the first album again, added later - must not get a tile of its own
+        self.items.append({"id": "album0", "source": "https://example.invalid/never-downloaded"})
+        common.write_data(self.project, {"items": self.items})
 
         self.patches = [
-            mock.patch.object(common, "ROOT", root),
-            mock.patch.object(common, "TMP", root / "tmp"),
             mock.patch.object(collage, "ROOT", root),
-            mock.patch.object(collage, "load_settings", lambda provider: SETTINGS),
+            mock.patch.object(collage, "load_project", self.load_project),
             mock.patch.object(sys, "argv", ["test"]),
         ]
         for patch in self.patches:
             patch.start()
         self.root = root
 
-    @staticmethod
-    def write_album(root, file_name, album_id, track_id):
-        album = {"albumId": album_id, "id": track_id, "images": "https://example.invalid/never-downloaded"}
-        (root / "album" / "data" / file_name).write_text(
-            "---\n" + "".join(f"    {key}: {json.dumps(value)}\n" for key, value in album.items()) + "---")
+    def load_project(self, source, project):
+        return self.project
+
+    def add_item(self, item_id, colour):
+        """An item with its image already in the cache, so nothing is downloaded."""
+        self.items.append({"id": item_id, "source": "https://example.invalid/never-downloaded"})
+        (self.dir / "images").mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (8, 8), colour).save(self.dir / "images" / f"{item_id}.jpg")
 
     def tearDown(self):
         for patch in self.patches:
@@ -67,9 +64,9 @@ class RenderTest(unittest.TestCase):
     def test_collage_fills_the_cells_in_order(self):
         with mock.patch.object(collage.random, "choice", lambda albums: albums[0]), redirect_stdout(io.StringIO()):
             collage.main()
-        image = Image.open(self.root / "album" / "collage.jpg").convert("RGB")
+        image = Image.open(self.dir / "collage.jpg").convert("RGB")
         self.assertEqual(image.size, common.canvas_size(4, 3, 10, 10, 2))
-        cells = collage.free_cells(4, 3, SETTINGS["collage"]["center"], [])
+        cells = collage.free_cells(4, 3, COLLAGE["center"], [])
         # album0 is in the middle, so album1 and album2 fill the first cells, the duplicate of album0 gets none
         for (c, r), colour in zip(cells, COLOURS[1:]):
             x, y = common.cell_xy(c, r, 10, 10, 2)
@@ -80,7 +77,7 @@ class RenderTest(unittest.TestCase):
     def test_collage_also_saves_a_thumbnail(self):
         with redirect_stdout(io.StringIO()):
             collage.main()
-        with Image.open(self.root / "album" / "collage_thumbnail.jpg") as thumbnail:
+        with Image.open(self.dir / "collage_thumbnail.jpg") as thumbnail:
             self.assertEqual(thumbnail.size, (97, 68))
             self.assertEqual(tuple(round(d) for d in thumbnail.info["dpi"]), (72, 72))
 
@@ -88,11 +85,11 @@ class RenderTest(unittest.TestCase):
         """Runs the collage with flags, returns (centre colour, colours of the filled grid cells)."""
         with mock.patch.object(sys, "argv", ["test", *flags]), redirect_stdout(io.StringIO()):
             collage.main()
-        image = Image.open(self.root / "album" / "collage.jpg").convert("RGB")
+        image = Image.open(self.dir / "collage.jpg").convert("RGB")
         x, y = common.cell_xy(1, 1, 10, 10, 2)
         centre = self.colour_at(image, x + 5, y + 5)
         cells = []
-        for c, r in collage.free_cells(4, 3, SETTINGS["collage"]["center"], []):
+        for c, r in collage.free_cells(4, 3, COLLAGE["center"], []):
             x, y = common.cell_xy(c, r, 10, 10, 2)
             colour = self.colour_at(image, x + 5, y + 5)
             if max(colour) > 30:
@@ -119,26 +116,25 @@ class RenderTest(unittest.TestCase):
         # the 4x3 grid has 12 cells with the centre (1, 1) included, 3 albums fill the bottom row from the right
         centre, cells = self.collage_with("--fill")
         self.assertColour(centre, (0, 0, 0))
-        image = Image.open(self.root / "album" / "collage.jpg").convert("RGB")
+        image = Image.open(self.dir / "collage.jpg").convert("RGB")
         for (c, r), colour in zip([(3, 2), (2, 2), (1, 2)], COLOURS):
             x, y = common.cell_xy(c, r, 10, 10, 2)
             self.assertColour(self.colour_at(image, x + 5, y + 5), colour)
 
     def test_collage_fill_fills_every_cell_when_there_are_enough_albums(self):
         for i in range(3, 12):
-            self.write_album(self.root, f"2026-02-{i:02d}.md", f"album{i}", f"track{i}")
-            Image.new("RGB", (8, 8), (200, 200, 0)).save(self.root / "tmp" / "covers" / f"album{i}.jpeg")
+            self.add_item(f"album{i}", (200, 200, 0))
+        common.write_data(self.project, {"items": self.items})
         centre, cells = self.collage_with("--fill")
         self.assertColour(centre, (200, 200, 0))
         self.assertEqual(len(cells), 11)
 
     def test_collage_centrepiece_spans_several_cells(self):
         # a 5x5 grid with a 3x3 centre, like the real 5x5 one: the cover must cover all 9 cells and the gaps between them
-        settings = {**SETTINGS, "collage": {**SETTINGS["collage"], "col": 5, "row": 5, "center": {"col": 1, "row": 1, "size": 3}}}
-        with mock.patch.object(collage, "load_settings", lambda provider: settings), \
-                mock.patch.object(sys, "argv", ["test", "--latest"]), redirect_stdout(io.StringIO()):
+        self.project["collage"] = {**COLLAGE, "col": 5, "row": 5, "center": {"col": 1, "row": 1, "size": 3}}
+        with mock.patch.object(sys, "argv", ["test", "--latest"]), redirect_stdout(io.StringIO()):
             collage.main()
-        image = Image.open(self.root / "album" / "collage.jpg").convert("RGB")
+        image = Image.open(self.dir / "collage.jpg").convert("RGB")
         x, y = common.cell_xy(1, 1, 10, 10, 2)
         span = 3 * 10 + 2 * 2
         for dx, dy in [(1, 1), (span // 2, span // 2), (11, 5), (span - 2, span - 2)]:  # corners, middle and a gap
@@ -152,14 +148,8 @@ class RenderTest(unittest.TestCase):
                 mock.patch("sys.stderr", io.StringIO()), self.assertRaises(SystemExit):
             collage.main()
 
-    def test_read_albums_keeps_the_first_song_per_album(self):
-        albums = common.read_albums("album")
-        self.assertEqual([album["albumId"] for album in albums], ["album0", "album1", "album2"])
-        self.assertEqual(albums[0]["id"], "track0")
-
-    def test_no_albums_exits(self):
-        for file in (self.root / "album" / "data").glob("*.md"):
-            file.unlink()
+    def test_no_items_exits(self):
+        common.write_data(self.project, {"items": []})
         with self.assertRaises(SystemExit):
             collage.main()
 

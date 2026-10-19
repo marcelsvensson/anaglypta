@@ -1,52 +1,86 @@
+import io
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from common import TMP, album_sort_key, canvas_size, cell_xy, cover_path, parse_frontmatter  # noqa: E402
+import tempfile  # noqa: E402
+
+from PIL import Image  # noqa: E402
+
+from common import canvas_size, cell_xy, ensure_image, image_path, square  # noqa: E402
+
+RED, BLUE = (255, 0, 0), (0, 0, 255)
 
 
-class AlbumSortKeyTest(unittest.TestCase):
-    def test_same_day_files_keep_their_order(self):
-        files = ["2025-08-11-10.md", "2025-08-11-1.md", "2025-08-12.md", "2025-08-11-0.md", "2025-08-11.md", "2025-08-11-2.md"]
-        self.assertEqual(
-            sorted(files, key=album_sort_key),
-            ["2025-08-11.md", "2025-08-11-0.md", "2025-08-11-1.md", "2025-08-11-2.md", "2025-08-11-10.md", "2025-08-12.md"],
-        )
+def close(actual, expected):
+    return all(abs(a - e) < 40 for a, e in zip(actual, expected))
 
 
-class ParseFrontmatterTest(unittest.TestCase):
-    def test_new_quoted_format(self):
-        text = '---\n    artist: "Guns N\' Roses: Live"\n    album: "Say \\"Hi\\""\n    id: "abc"\n    images: https://i.scdn.co/image/x\n    tags:\n    - "metal"\n---'
-        data = parse_frontmatter(text)
-        self.assertEqual(data["artist"], "Guns N' Roses: Live")
-        self.assertEqual(data["album"], 'Say "Hi"')
-        self.assertEqual(data["id"], "abc")
-        self.assertEqual(data["images"], "https://i.scdn.co/image/x")
-        self.assertNotIn("- \"metal\"", data)
-
-    def test_old_unquoted_format(self):
-        text = "---\n    artist: Blood Incantation\n    release: \"2024-10-04\"\n    images: https://i.scdn.co/image/y\n    tags: \n    - death metal\n---"
-        data = parse_frontmatter(text)
-        self.assertEqual(data["artist"], "Blood Incantation")
-        self.assertEqual(data["release"], "2024-10-04")
-        self.assertEqual(data["images"], "https://i.scdn.co/image/y")
-
-    def test_no_frontmatter(self):
-        self.assertEqual(parse_frontmatter("just text"), {})
-        self.assertEqual(parse_frontmatter(""), {})
+def halves(width, height):
+    """Left half red, right half blue."""
+    image = Image.new("RGB", (width, height), BLUE)
+    image.paste(Image.new("RGB", (width // 2, height), RED), (0, 0))
+    return image
 
 
-class CoverPathTest(unittest.TestCase):
-    def test_one_cover_per_album(self):
-        song = {"albumId": "A1", "id": "t1", "file": "2026-01-01.md"}
-        other_song = {"albumId": "A1", "id": "t2", "file": "2026-01-02.md"}
-        self.assertEqual(cover_path("album", song), TMP / "covers" / "A1.jpeg")
-        self.assertEqual(cover_path("album", song), cover_path("album", other_song))
+class SquareTest(unittest.TestCase):
+    def test_crops_the_centre_and_never_stretches(self):
+        result = square(halves(40, 10), 8)
+        self.assertEqual(result.size, (8, 8))
+        # the middle 10x10 of a 40x10 image is still half red, half blue
+        self.assertTrue(close(result.getpixel((1, 4)), RED))
+        self.assertTrue(close(result.getpixel((6, 4)), BLUE))
 
-    def test_old_files_without_album_id_use_the_track_id(self):
-        self.assertEqual(cover_path("album", {"id": "t1", "file": "x.md"}), TMP / "covers" / "t1.jpeg")
+    def test_turns_the_photo_upright_first(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "rotated.jpg"
+            exif = Image.Exif()
+            exif[0x0112] = 6  # orientation: rotate 90 clockwise to show it
+            halves(40, 20).save(path, exif=exif)
+            with Image.open(path) as image:
+                result = square(image, 8)
+        # upright, the red left half is on top
+        self.assertTrue(close(result.getpixel((6, 1)), RED))
+        self.assertTrue(close(result.getpixel((1, 6)), BLUE))
+
+    def test_any_mode_becomes_rgb(self):
+        self.assertEqual(square(Image.new("RGBA", (5, 9)), 4).mode, "RGB")
+        self.assertEqual(square(Image.new("P", (9, 5)), 4).mode, "RGB")
+
+
+class EnsureImageTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        self.project = {"source": "local", "name": "cats", "dir": self.root / "projects" / "local" / "cats", "imageSize": 16}
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_makes_a_square_copy_of_a_local_file_once(self):
+        source = self.root / "photo.png"
+        halves(30, 60).save(source)
+        item = {"id": "abc", "source": str(source)}
+        path = ensure_image(self.project, item)
+        self.assertEqual(path, image_path(self.project, item))
+        self.assertEqual(path, self.project["dir"] / "images" / "abc.jpg")
+        with Image.open(path) as image:
+            self.assertEqual(image.size, (16, 16))
+        source.unlink()
+        self.assertEqual(ensure_image(self.project, item), path, "the cached copy is used")
+
+    def test_unreadable_and_missing_sources_give_none(self):
+        broken = self.root / "broken.jpg"
+        broken.write_bytes(b"not an image")
+        with mock.patch("sys.stderr", io.StringIO()) as stderr:
+            self.assertIsNone(ensure_image(self.project, {"id": "a", "title": "Broken", "source": str(broken)}))
+            self.assertIsNone(ensure_image(self.project, {"id": "b", "source": str(self.root / "gone.jpg")}))
+            self.assertIsNone(ensure_image(self.project, {"id": "c"}))
+        self.assertIn("Broken", stderr.getvalue())
+        self.assertFalse((self.project["dir"] / "images").exists() and any((self.project["dir"] / "images").iterdir()))
 
 
 class GridMathTest(unittest.TestCase):
