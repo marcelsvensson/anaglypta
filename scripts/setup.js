@@ -11,7 +11,7 @@ const { spawnSync } = require("node:child_process");
 
 const { VENV_PYTHON, hasPackages } = require("./python");
 const {
-    expandHome, parsePlaylistId, toKebab, readSettings, readProjects, writeProjects, listProjects, getProject, resolveProject,
+    expandHome, parsePlaylistId, parseListId, toKebab, readSettings, readProjects, writeProjects, listProjects, getProject, resolveProject,
     parseProjectArgs,
 } = require("./project");
 
@@ -30,6 +30,9 @@ const warn = (message) => console.log(`⚠️  ${message}`);
 // --- pure helpers (exported for tests) ---
 
 const isClientId = (input) => /^[0-9a-f]{32}$/i.test(String(input ?? "").trim());
+
+// TMDb's API Read Access Token is a JWT (eyJ....), the 32-character API key is a different thing
+const isTmdbToken = (input) => /^eyJ[\w-]+\.[\w-]+\.[\w-]+$/.test(String(input ?? "").trim());
 
 // KEY=value lines, comments and empty lines ignored
 const parseEnv = (text) => {
@@ -372,6 +375,7 @@ const readCrontab = () => {
 const SOURCES = {
     spotify: "the album covers of a Spotify playlist",
     local: "the images in a folder on this computer",
+    tmdb: "the posters of a TMDb list (movies and series)",
 };
 
 const isYes = (answer) => answer !== null && /^y/i.test(answer.trim());
@@ -441,6 +445,64 @@ const lookupPlaylistName = async (playlistId) => {
     } catch (error) {
         warn(`Couldn't look up the playlist (${error.message})`);
         return null;
+    }
+};
+
+// a TMDb list's name and length for the project name, when TMDB_TOKEN is set (setup doesn't load .env by itself)
+const lookupList = async (listId) => {
+    const token = readEnv().TMDB_TOKEN;
+    if (!token) {
+        return null;
+    }
+    process.env.TMDB_TOKEN ||= token;
+    try {
+        return await require("../api/tmdb").getListPage(listId, 1);
+    } catch (error) {
+        warn(`Couldn't look up the list (${error.message})`);
+        return null;
+    }
+};
+
+const askTmdbProject = async (input, projects) => {
+    console.log("\n  Your list: on themoviedb.org, open the list and copy its link (themoviedb.org/list/<number>...).");
+    console.log("  It has to be public (a setting when you edit the list).\n");
+    const listId = await askUntil(input, "  List link (empty to skip): ", parseListId,
+        "That doesn't look like a list link (https://www.themoviedb.org/list/...)");
+    if (!listId) {
+        return null;
+    }
+    const list = await lookupList(listId);
+    if (list) {
+        ok(`List: ${list.name}${list.itemCount !== null ? ` (${list.itemCount} entries)` : ""}`);
+    }
+    const name = await askProjectName(input, "tmdb", projects, toKebab(list?.name));
+    return name && { name, entry: { list: `https://www.themoviedb.org/list/${listId}` } };
+};
+
+const printTmdbGuide = () => {
+    console.log(`
+  Get a TMDb token (once, free for non-commercial use):
+    1. Make an account at https://www.themoviedb.org/signup
+    2. Open https://www.themoviedb.org/settings/api and request an API key (type: personal). As the
+       application URL, your copy of the repo (e.g. on GitHub) or http://127.0.0.1 is fine
+    3. Copy the "API Read Access Token" - the long one starting with eyJ, not the shorter API Key
+`);
+};
+
+// TMDB_TOKEN, only asked when there's a tmdb project
+const setupTmdb = async (input, todo) => {
+    if (readEnv().TMDB_TOKEN) {
+        ok("TMDB_TOKEN is set");
+        return;
+    }
+    printTmdbGuide();
+    const token = await askUntil(input, "  API Read Access Token (empty to skip): ", (answer) => isTmdbToken(answer) && answer.trim(),
+        "That doesn't look like the Read Access Token (it starts with eyJ and is a few hundred characters long)");
+    if (token) {
+        writeEnvValue("TMDB_TOKEN", token);
+        ok("TMDB_TOKEN saved to .env");
+    } else {
+        todo.push("Add TMDB_TOKEN to .env (the API Read Access Token from https://www.themoviedb.org/settings/api)");
     }
 };
 
@@ -562,15 +624,18 @@ const main = async () => {
     const settings = readSettings();
     const sources = Object.keys(settings.sources);
     const ids = () => listProjects(settings, readProjects()).map(({ source, name }) => `${source}/${name}`);
-    let spotifyDone = false;
     let added = null;
 
-    const spotify = async () => {
-        if (!spotifyDone) {
-            await setupSpotify(input, todo);
-            spotifyDone = true;
+    // a source's credentials, asked once per run: the Spotify app + login, the TMDb token
+    const credentials = { spotify: () => setupSpotify(input, todo), tmdb: () => setupTmdb(input, todo) };
+    const askedFor = new Set();
+    const ensureCredentials = async (source) => {
+        if (credentials[source] && !askedFor.has(source)) {
+            askedFor.add(source);
+            await credentials[source]();
         }
     };
+    const adders = { spotify: askSpotifyProject, local: askLocalProject, tmdb: askTmdbProject };
 
     // a number from the list, or source/name
     const pickProject = (question) => {
@@ -581,16 +646,13 @@ const main = async () => {
     };
 
     const add = async () => {
-        // only the sources setup knows how to add (tmdb: add it to projects.json by hand for now)
-        const source = await askSource(input, sources.filter((name) => ["spotify", "local"].includes(name)));
+        const source = await askSource(input, sources.filter((name) => adders[name]));
         if (!source) {
             return;
         }
-        if (source === "spotify") {
-            await spotify();
-        }
+        await ensureCredentials(source);
         const projects = readProjects();
-        const project = await (source === "spotify" ? askSpotifyProject : askLocalProject)(input, projects);
+        const project = await adders[source](input, projects);
         if (!project) {
             return;
         }
@@ -673,7 +735,8 @@ const main = async () => {
         }
         const project = getProject({ project: id });
         const current = readProjects();
-        const title = project.source === "spotify" && project.playlistId ? await lookupPlaylistName(project.playlistId) : null;
+        const title = project.source === "spotify" && project.playlistId ? await lookupPlaylistName(project.playlistId)
+            : project.source === "tmdb" && project.listId ? (await lookupList(project.listId))?.name : null;
         const name = await askProjectName(input, project.source, current, toKebab(title ?? ""), { replace: false });
         if (!name || name === project.name) {
             ok("Nothing renamed");
@@ -708,8 +771,10 @@ const main = async () => {
         }
     };
 
-    if (ids().some((id) => id.startsWith("spotify/"))) {
-        await spotify();
+    for (const source of Object.keys(credentials)) {
+        if (ids().some((id) => id.startsWith(`${source}/`))) {
+            await ensureCredentials(source);
+        }
     }
 
     if (!ids().length) {
@@ -774,4 +839,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor, pickBlobs };
+module.exports = { parsePlaylistId, isClientId, isTmdbToken, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor, pickBlobs };

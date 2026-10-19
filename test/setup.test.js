@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { resolveProject } = require("../scripts/project");
-const { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor, pickBlobs } = require("../scripts/setup");
+const { parsePlaylistId, isClientId, isTmdbToken, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor, pickBlobs } = require("../scripts/setup");
 
 const ID = "37i9dQZF1DXcBWIGoYBM5M";
 
@@ -130,4 +130,11 @@ test("renameProject keeps the project's place and moves the default along", () =
     assert.deepEqual(renamed.spotify["daily-mix"], { playlist: "y" });
     assert.equal(renamed.default, "spotify/daily-mix");
     assert.equal(renameProject(projects, "spotify", "a", "b").default, "spotify/https-open");
+});
+
+test("isTmdbToken accepts the Read Access Token, not the API key", () => {
+    assert.ok(isTmdbToken(" eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJ4In0.c2lnbmF0dXJl-_x "));
+    assert.ok(!isTmdbToken("0123456789abcdef0123456789abcdef"), "the API key");
+    assert.ok(!isTmdbToken("eyJ.only-two"));
+    assert.ok(!isTmdbToken(""));
 });

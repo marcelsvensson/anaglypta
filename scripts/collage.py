@@ -91,7 +91,8 @@ def main():
 
     output = project["dir"] / "collage.jpg"
     canvas.save(output, quality=95)
-    print(f"Saved {output.relative_to(ROOT)} ({drawn}/{len(chosen)} images, {len(cells)} cells)")
+    centre = "" if args.fill else " + centrepiece"
+    print(f"Saved {output.relative_to(ROOT)} ({drawn}/{len(chosen)} images{centre}, {len(cells)} cells)")
 
     thumbnail = project["dir"] / "collage_thumbnail.jpg"
     ImageOps.fit(canvas, THUMBNAIL_SIZE, Image.Resampling.LANCZOS).save(thumbnail, quality=95, dpi=(72, 72))

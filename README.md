@@ -4,7 +4,7 @@
 >
 > — [Wikipedia](https://en.wikipedia.org/wiki/Anaglypta)
 
-Turn a Spotify playlist or a folder of photos into wallpaper. Anaglypta makes **a collage**: 92 square images around a big centrepiece (a random one or the newest), or 117 without one, good as a desktop background or in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music (or cats).
+Turn a Spotify playlist, a TMDb list of movies and series or a folder of photos into wallpaper. Anaglypta makes **a collage**: 92 square images around a big centrepiece (a random one or the newest), or 117 without one, good as a desktop background or in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music, film (or cats).
 
 ## Sources and projects
 
@@ -14,6 +14,7 @@ Images come from a **source**, and every source can have several **projects**:
 |---|---|---|
 | `spotify` | a playlist: one image per album cover | a Spotify app and Premium, see [below](#create-a-spotify-app) |
 | `local` | a folder on this computer: jpg, png, webp, gif, bmp, tiff and heic, directly in that folder (subfolders are left alone) | nothing else |
+| `tmdb` | a public [TMDb](https://www.themoviedb.org) list: one poster per movie or series | a free TMDb token, see [below](#get-a-tmdb-token) |
 
 Each project lives in `projects/<source>/<name>/`: `items.json` (what's been fetched, and how far), `images/` (square copies, 640×640 by default) and the collages. `npm run setup` adds projects, they're stored in `projects.json`.
 
@@ -21,11 +22,12 @@ Each project lives in `projects/<source>/<name>/`: `items.json` (what's been fet
 
 - [Node.js](https://nodejs.org) 20 or newer
 - [Python](https://www.python.org) 3.9 or newer
+- For TMDb projects: a free [TMDb](https://www.themoviedb.org) account and a **public** list
 - For Spotify projects: a **Spotify Premium** account (Spotify requires Premium for the owner of a developer app) and a playlist that **you own or collaborate on** (Spotify only shares the contents of those)
 
 ## Quick start
 
-1. For a Spotify playlist, **first [create a Spotify app](#create-a-spotify-app).** It takes about five minutes, and the setup asks for its Client ID and your playlist link. For a folder of images, skip this.
+1. For a Spotify playlist, **first [create a Spotify app](#create-a-spotify-app).** It takes about five minutes, and the setup asks for its Client ID and your playlist link. For a TMDb list, [get a TMDb token](#get-a-tmdb-token) first. For a folder of images, skip this.
 2. Then:
 
    ```sh
@@ -63,6 +65,16 @@ Good to know:
 
 - New apps run in **development mode**: up to 5 Spotify users, and anyone other than you must be added under **User Management** in the app's settings.
 - **Apps created before 2026** can still use the older login with a client secret: set `CLIENT_SECRET` in `.env` instead of running `npm run auth`.
+
+## Get a TMDb token
+
+TMDb projects read a public list through the [TMDb API](https://developer.themoviedb.org/docs/getting-started), free for non-commercial use.
+
+1. Make an account at [themoviedb.org](https://www.themoviedb.org/signup).
+2. Open [Settings → API](https://www.themoviedb.org/settings/api) and request an API key. Pick personal use. As the application URL, your fork of this repo (or `http://127.0.0.1`) is fine: it's only a description, nothing is redirected to it.
+3. Copy the **API Read Access Token** (the long one, starting with `eyJ`), not the shorter API Key. `npm run setup` asks for it and saves it in `.env` as `TMDB_TOKEN`.
+
+Your list has to be **public** (a setting when you edit the list on themoviedb.org). Setup asks for its link (`https://www.themoviedb.org/list/<number>`) and suggests a project name from the list's name. The project follows the list: what you add shows up on the next `full` or `daily-new`, what you remove is dropped.
 
 ## Ways to use it
 
@@ -121,6 +133,7 @@ Created by `npm run setup` from [`.example.env`](.example.env). Never commit it.
 | Variable | | What |
 |---|---|---|
 | `CLIENT_ID` | Spotify | Your Spotify app's Client ID |
+| `TMDB_TOKEN` | TMDb | Your TMDb API Read Access Token |
 | `CLIENT_SECRET` | optional | Only for apps created before 2026 (instead of `npm run auth`) |
 | `SPOTIFY_MARKET` | optional | Country code such as `SE`, for track availability |
 | `SPOTIFY_AUTH_PORT` | optional | Port for the login, default `8888` |
@@ -134,7 +147,8 @@ Written by `npm run setup`, ignored by git (see [`projects.example.json`](projec
 {
   "default": "spotify/album",
   "spotify": { "album": { "playlist": "https://open.spotify.com/playlist/..." } },
-  "local": { "cats": { "path": "~/Pictures/cats", "collage": { "center": { "size": 3 } } } }
+  "local": { "cats": { "path": "~/Pictures/cats", "collage": { "center": { "size": 3 } } } },
+  "tmdb": { "series": { "list": "https://www.themoviedb.org/list/..." } }
 }
 ```
 
@@ -202,6 +216,7 @@ Good to know on macOS:
 
 1. `npm run full` (and `daily-new`) asks the project's source for new items and adds them to `projects/<source>/<name>/items.json`, together with how far it has come (the position in the playlist, for Spotify).
    - `spotify`: one item per album (title, artist, cover URL), from the playlist's new entries.
+   - `tmdb`: one item per movie or series in the list (title, year, poster URL), in the list's order.
    - `local`: one item per image in the folder. The square copies are made right away, so a broken file shows up as a warning (once) and is skipped.
 2. Then it makes a square copy of every new image in `images/` (Spotify covers are downloaded for it). Images are cropped to the centre, never stretched, and photos are turned upright. A failed download is tried again on the next run.
 3. `npm run collage` draws the collage from `images/` with Python/Pillow, so it works offline (good for a `random-meet` from cron on a laptop).
@@ -218,6 +233,9 @@ Everything generated (`projects/`) and `projects.json` are ignored by git. `npm 
 | `invalid_grant` | The login expired or was revoked. Run `npm run auth` again. |
 | `INVALID_CLIENT: Invalid redirect URI` | The Redirect URI in the app must be exactly `http://127.0.0.1:8888/callback` (or your `SPOTIFY_AUTH_PORT`). |
 | `Port 8888 is busy` | Set `SPOTIFY_AUTH_PORT` in `.env` and add the matching Redirect URI to the app. |
+| `Missing TMDB_TOKEN` / TMDb `401` | Add the API Read Access Token (not the API Key) to `.env`, or run `npm run setup`. |
+| TMDb `404` on the list / `TMDb returned no list items` | The list has to be public, and the link or id in `projects.json` must be the list's. |
+| `Skipped ... without a poster on TMDb` | Not an error: TMDb has no poster for that entry yet, it's picked up once it has one. |
 | `Python packages missing` | Run `npm run setup:python`. |
 | `Nothing fetched for ... yet` | Run `npm run full` first (with the same `-p`). |
 | `Unknown project` | Check the name with `npm run setup` (it lists your projects), or add the project there. |
@@ -236,6 +254,14 @@ npm test
 ```
 
 Runs the Node tests (`node:test`) and the Python tests (`unittest`) in a couple of seconds. They need no network, no Spotify account and no `.env`: Spotify responses come from the fixtures in `test/fixtures/`, and the image tests draw solid-colour images in a temp folder.
+
+## TMDb
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+
+<a href="https://www.themoviedb.org"><img src="https://www.themoviedb.org/assets/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" alt="The Movie Database (TMDB)" width="120"></a>
+
+Posters and titles come from TMDb and belong to their rights holders. Like Spotify covers, the generated images are for your own use: don't commit or redistribute them, and follow the [TMDb API terms](https://www.themoviedb.org/api-terms-of-use).
 
 ## Spotify content
 
