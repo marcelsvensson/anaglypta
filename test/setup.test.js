@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { resolveProject } = require("../scripts/project");
-const { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, cronLinesFor, pickBlobs } = require("../scripts/setup");
+const { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor, pickBlobs } = require("../scripts/setup");
 
 const ID = "37i9dQZF1DXcBWIGoYBM5M";
 
@@ -121,4 +121,13 @@ test("cronLinesFor sorts the cron.sh lines of a project into failing and moving 
     ]);
     assert.deepEqual(cronLinesFor("", "local/cats", () => "local/cats", () => null), []);
     assert.deepEqual(cronLinesFor(null, "local/cats", () => "local/cats", () => null), []);
+});
+
+test("renameProject keeps the project's place and moves the default along", () => {
+    const projects = { default: "spotify/https-open", spotify: { a: { playlist: "x" }, "https-open": { playlist: "y" }, z: {} } };
+    const renamed = renameProject(projects, "spotify", "https-open", "daily-mix");
+    assert.deepEqual(Object.keys(renamed.spotify), ["a", "daily-mix", "z"]);
+    assert.deepEqual(renamed.spotify["daily-mix"], { playlist: "y" });
+    assert.equal(renamed.default, "spotify/daily-mix");
+    assert.equal(renameProject(projects, "spotify", "a", "b").default, "spotify/https-open");
 });

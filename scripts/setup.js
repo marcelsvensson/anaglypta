@@ -92,6 +92,13 @@ const removeProject = (projects, source, name) => {
     return next;
 };
 
+// projects.json with source/from renamed to source/to, in the same place in the file, the default following along
+const renameProject = (projects, source, from, to) => {
+    const renamed = Object.fromEntries(Object.entries(projects[source] ?? {}).map(([name, entry]) => [name === from ? to : name, entry]));
+    const next = { ...projects, [source]: renamed };
+    return next.default === `${source}/${from}` ? setDefault(next, `${source}/${to}`) : next;
+};
+
 // the cron.sh lines in a crontab (`crontab -l`) that run project id. before/after resolve a line's own -s/-p flags to a
 // project id (null = an error) with the project still there and without it. -> [{ line, named, to }]: named = it has -p
 // (it fails once the project is gone), else it ran id as a default and runs `to` from now on (null: fails too)
@@ -385,12 +392,17 @@ const askSource = async (input, sources) => {
         `Pick ${sources.map((_, i) => i + 1).join(" or ")}`);
 };
 
-// asks for a name (suggestion on Enter), turned into kebab-case, null = skip
-const askProjectName = async (input, source, projects, suggestion) => {
+// asks for a name (suggestion on Enter), turned into kebab-case, null = skip. replace: an existing name may be replaced
+// (asks first), else it has to be a new one
+const askProjectName = async (input, source, projects, suggestion, { replace = true } = {}) => {
     for (;;) {
         const answer = await input.ask(`  Project name${suggestion ? ` [${suggestion}]` : ""}: `);
         if (answer === null) {
             return null;
+        }
+        if (/^\s*(https?:|spotify:)/i.test(answer)) {
+            warn("That's a link - type a short name for the project, like my-playlist");
+            continue;
         }
         const name = toKebab(answer.trim() || suggestion);
         if (!name) {
@@ -400,8 +412,14 @@ const askProjectName = async (input, source, projects, suggestion) => {
             warn("Use letters and digits, like my-playlist");
             continue;
         }
-        if (projects[source]?.[name] && !isYes(await input.ask(`  ${source}/${name} already exists - replace it? [y/N] `))) {
-            continue;
+        if (projects[source]?.[name]) {
+            if (!replace) {
+                warn(`${source}/${name} already exists - pick another name`);
+                continue;
+            }
+            if (!isYes(await input.ask(`  ${source}/${name} already exists - replace it? [y/N] `))) {
+                continue;
+            }
         }
         return name;
     }
@@ -589,6 +607,15 @@ const main = async () => {
         }
     };
 
+    // the project id a cron line's flags pick with these projects, null when they pick none
+    const resolveWith = (projects) => ({ source, project: name }) => {
+        try {
+            return resolveProject(settings, projects, { source, project: name }).id;
+        } catch {
+            return null;
+        }
+    };
+
     const remove = async () => {
         const id = await pickProject("Remove project");
         if (!id) {
@@ -597,13 +624,6 @@ const main = async () => {
         const project = getProject({ project: id });
         const isDefault = id === defaultId();
         const crontab = readCrontab();
-        const resolveWith = (projects) => ({ source, project: name }) => {
-            try {
-                return resolveProject(settings, projects, { source, project: name }).id;
-            } catch {
-                return null;
-            }
-        };
         const current = readProjects();
         const lines = cronLinesFor(crontab, id, resolveWith(current), resolveWith(removeProject(current, project.source, project.name)));
         const show = (list) => console.log(list.map(({ line }) => `      ${line}`).join("\n"));
@@ -645,6 +665,48 @@ const main = async () => {
         }
     };
 
+    const rename = async () => {
+        const id = await pickProject("Rename project");
+        if (!id) {
+            return;
+        }
+        const project = getProject({ project: id });
+        const current = readProjects();
+        const title = project.source === "spotify" && project.playlistId ? await lookupPlaylistName(project.playlistId) : null;
+        const name = await askProjectName(input, project.source, current, toKebab(title ?? ""), { replace: false });
+        if (!name || name === project.name) {
+            ok("Nothing renamed");
+            return;
+        }
+        const next = renameProject(current, project.source, project.name, name);
+        const newId = `${project.source}/${name}`;
+
+        const failing = cronLinesFor(readCrontab(), id, resolveWith(current), resolveWith(next)).filter(({ to }) => !to);
+        if (failing.length) {
+            warn(`These crontab (crontab -l) lines name ${id} - change them to -p ${newId} (\`crontab -e\`, in another terminal):`);
+            console.log(failing.map(({ line }) => `      ${line}`).join("\n"));
+        }
+        if (!isYes(await input.ask(`  Rename ${id} to ${newId}? [y/N] `))) {
+            ok("Nothing renamed");
+            return;
+        }
+
+        if (fs.existsSync(project.dir)) {
+            const target = path.join(path.dirname(project.dir), name);
+            fs.renameSync(project.dir, target);
+            const itemsFile = path.join(target, "items.json");
+            if (fs.existsSync(itemsFile)) {
+                const data = JSON.parse(fs.readFileSync(itemsFile, "utf8"));
+                fs.writeFileSync(itemsFile, JSON.stringify({ ...data, project: name }, null, 2) + "\n");
+            }
+        }
+        writeProjects(next);
+        ok(`Renamed ${id} to ${newId}`);
+        if (added && `${added.source}/${added.project}` === id) {
+            added = { source: project.source, project: name };
+        }
+    };
+
     if (ids().some((id) => id.startsWith("spotify/"))) {
         await spotify();
     }
@@ -665,17 +727,17 @@ const main = async () => {
                 warn("No default project (the one used without -p) - pick one");
                 await changeDefault();
             }
-            const choices = ["[a]dd a project", ...(list.length > 1 ? ["change the [d]efault"] : []), "[r]emove one"];
+            const choices = ["[a]dd a project", ...(list.length > 1 ? ["change the [d]efault"] : []), "re[n]ame", "[r]emove one"];
             const answer = await input.ask(`\n  ${choices.join(", ")}, or Enter when done: `);
             const choice = answer?.trim().toLowerCase()[0];
             if (!choice) {
                 break;
             }
-            const action = { a: add, d: list.length > 1 && changeDefault, r: remove }[choice];
+            const action = { a: add, d: list.length > 1 && changeDefault, n: rename, r: remove }[choice];
             if (action) {
                 await action();
             } else {
-                warn(`Type ${list.length > 1 ? "a, d or r" : "a or r"}`);
+                warn(`Type ${list.length > 1 ? "a, d, n or r" : "a, n or r"}`);
             }
             console.log();
         }
@@ -711,4 +773,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, cronLinesFor, pickBlobs };
+module.exports = { parsePlaylistId, isClientId, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor, pickBlobs };

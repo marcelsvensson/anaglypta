@@ -37,7 +37,7 @@ Each project lives in `projects/<source>/<name>/`: `items.json` (what's been fet
    npm run collage
    ```
 
-`npm run setup` walks you through the rest: it sets up Python, creates `.env` and adds your first project. For Spotify it asks for your Client ID, logs you in and suggests a project name from the playlist's name. For a folder it counts the images and suggests the folder's name. Run it again at any time to check that everything is in place, and to add a project, pick which one is the default or remove one. Removing deletes the project's folder in `projects/` (never your own photos), and first shows the lines in your crontab that use the project, so you can change them before they start failing. `npm run full` fetches the images, `npm run collage` draws the collage.
+`npm run setup` walks you through the rest: it sets up Python, creates `.env` and adds your first project. For Spotify it asks for your Client ID, logs you in and suggests a project name from the playlist's name. For a folder it counts the images and suggests the folder's name. Run it again at any time to check that everything is in place, and to add a project, pick which one is the default, rename one or remove one. Removing deletes the project's folder in `projects/` (never your own photos), and first shows the lines in your crontab that use the project, so you can change them before they start failing. `npm run full` fetches the images, `npm run collage` draws the collage.
 
 Then look in `projects/<source>/<name>/`: `collage.jpg` (and a small `collage_thumbnail.jpg`).
 
@@ -97,7 +97,7 @@ All of them take `-p <project>` / `-s <source>` after `--`.
 
 | Command | Does |
 |---|---|
-| `npm run setup` | Gets everything ready, adds, removes and picks the default project (safe to re-run) |
+| `npm run setup` | Gets everything ready, adds, renames, removes and picks the default project (safe to re-run) |
 | `npm run setup:python` | Only the Python part (`.venv` with Pillow and pillow-heif) |
 | `npm run setup:meet` | Optional: set up the collage as your Google Meet background (macOS + Chrome) |
 | `npm run auth` | Log in to Spotify (again) |
