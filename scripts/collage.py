@@ -55,7 +55,7 @@ def main():
     parser.add_argument("--grid", action="store_true", help="only print the layouts that fit the project's aspect and items")
     args = parser.parse_args()
 
-    project = load_project(args.source, args.project)
+    project = load_project(args.source, args.project, mix=True)
     try:
         aspect = parse_aspect(project.get("aspect"))
     except ValueError as error:

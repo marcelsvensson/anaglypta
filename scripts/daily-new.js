@@ -1,6 +1,7 @@
-// npm run daily-new [-- -p <project>]: the day-by-day reveal - fetches exactly one new item, draws the collage with it in
+// npm run daily-new [-- -p <project> | -p mix]: the day-by-day reveal - fetches exactly one new item, draws the collage with it in
 // the middle (--latest) and sends it to Google Meet (skipped when that isn't set up). A script and not a && chain in
-// package.json, so -s/-p reach every step (npm only appends options to the last command). Other options go to the collage.
+// package.json, so -s/-p reach every step (npm only appends options to the last command), -p mix is picked once here. Other
+// options go to the collage.
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
@@ -14,7 +15,7 @@ const steps = (project, rest) => [
 
 const main = () => {
     const { source, project: name, rest } = parseProjectArgs(process.argv.slice(2));
-    const project = getProject({ source, project: name });
+    const project = getProject({ source, project: name }, ROOT, { mix: true });
     for (const [script, ...args] of steps(project, rest)) {
         const result = spawnSync(process.execPath, [path.join(__dirname, script), ...args], { cwd: ROOT, stdio: "inherit" });
         if (result.status !== 0) {

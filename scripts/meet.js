@@ -1,14 +1,15 @@
-// npm run meet [-- -p <project>] [--dry-run]: puts the project's collage and its thumbnail in as your Google Meet background, by overwriting the
+// npm run meet [-- -p <project> | -p mix] [--dry-run]: puts the project's collage and its thumbnail in as your Google Meet background, by overwriting the
 // two blob files Chrome stored when you uploaded a background in Meet (GOOGLE_MEET_BLOB_PATH, GOOGLE_MEET_BLOB_PATH_THUMBNAIL
 // in .env, `npm run setup:meet` finds them). Skipped when neither is set.
 // npm run random-meet [-- -p <project>] [--cover | --latest | --fill] (= --collage): draws a new random collage first, and refuses to run
-// (before drawing anything) when Google Meet isn't set up.
+// (before drawing anything) when Google Meet isn't set up. -p mix: a random project (not last time's, allowMix: false opts out),
+// picked once here and passed on by name.
 // Experimental: Chrome's IndexedDB files are undocumented and may change with a Chrome update or a new upload.
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { ROOT, expandHome, getProject, parseProjectArgs, projectArgs } = require("./project");
+const { ROOT, MIX, expandHome, getProject, parseProjectArgs, projectArgs } = require("./project");
 
 const KEYS = ["GOOGLE_MEET_BLOB_PATH", "GOOGLE_MEET_BLOB_PATH_THUMBNAIL"];
 
@@ -48,11 +49,13 @@ const python = (...args) => {
 
 const main = () => {
     const { source, project: name, rest } = parseProjectArgs(process.argv.slice(2));
-    const project = getProject({ source, project: name });
     require("dotenv").config({ quiet: true });
-    const isFile = (file) => fs.statSync(file, { throwIfNoEntry: false })?.isFile() ?? false;
-    const copies = planCopies(process.env, { isFile }, project.dir);
     const drawCollage = rest.includes("--collage");
+    // -p mix waits until Meet is set up, so it doesn't use up a pick when there's nothing to send it to
+    const configured = KEYS.some((key) => process.env[key]);
+    const project = configured || name !== MIX ? getProject({ source, project: name }, ROOT, { mix: true }) : null;
+    const isFile = (file) => fs.statSync(file, { throwIfNoEntry: false })?.isFile() ?? false;
+    const copies = configured ? planCopies(process.env, { isFile }, project.dir) : null;
     if (!copies) {
         if (drawCollage) {
             throw new Error("not set up - run `npm run setup:meet` first");

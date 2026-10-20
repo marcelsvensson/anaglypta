@@ -4,15 +4,16 @@
     "defaults": {
       "maxItems": 200,
       "imageSize": 640,
+      "allowMix": true,
       "collage": { "col": 13, "row": 9, "gap": 8, "center": { "col": 4, "row": 2, "size": 5 }, "skip": [[12, 8]] }
     },
-    "sources": { "spotify": {}, "local": { "maxItems": 100 }, "tmdb": {} }
+    "sources": { "spotify": {}, "local": { "maxItems": 100 }, "tmdb": { "allowMix": false } }
   },
   "projects": {
     "default": "local/cats",
     "spotify": {
       "album": { "playlist": "https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=x", "maxItems": 50 },
-      "cats": { "playlist": "37i9dQZF1DXcBWIGoYBM5M", "collage": { "skip": [] } }
+      "cats": { "playlist": "37i9dQZF1DXcBWIGoYBM5M", "collage": { "skip": [] }, "allowMix": false }
     },
     "local": {
       "cats": { "path": "/pics/cats", "collage": { "center": { "size": 3 } } },
@@ -20,7 +21,7 @@
       "Bad_Name": { "path": "/pics/bad" }
     },
     "tmdb": {
-      "series": { "list": "https://www.themoviedb.org/list/8512345-my-series?view=grid" },
+      "series": { "list": "https://www.themoviedb.org/list/8512345-my-series?view=grid", "allowMix": true },
       "films": { "list": "42" },
       "broken": { "list": "https://www.themoviedb.org/u/someone/lists" }
     }
@@ -56,6 +57,13 @@
     { "flags": { "project": "Bad_Name" }, "error": "lowercase letters" },
     { "flags": { "project": "series" }, "expected": { "source": "tmdb", "name": "series", "listId": "8512345", "folder": "projects/tmdb/series" } },
     { "flags": { "project": "tmdb/films" }, "expected": { "listId": "42" } },
-    { "flags": { "project": "broken" }, "expected": { "source": "tmdb", "listId": null } }
+    { "flags": { "project": "broken" }, "expected": { "source": "tmdb", "listId": null } },
+    { "flags": { "project": "mix" }, "error": "only works with" },
+    { "flags": { "source": "local", "project": "mix" }, "error": "only works with" }
+  ],
+  "mixCases": [
+    { "source": null, "expected": ["local/cats", "local/dogs", "spotify/album", "tmdb/series"] },
+    { "source": "spotify", "expected": ["spotify/album"] },
+    { "source": "tmdb", "expected": ["tmdb/series"] }
   ]
 }

@@ -11,7 +11,7 @@ const { spawnSync } = require("node:child_process");
 
 const { VENV_PYTHON, hasPackages } = require("./python");
 const {
-    expandHome, parsePlaylistId, parseListId, toKebab, cacheNote, readSettings, readProjects, writeProjects, listProjects, getProject, resolveProject,
+    MIX, expandHome, parsePlaylistId, parseListId, toKebab, cacheNote, readSettings, readProjects, writeProjects, listProjects, getProject, resolveProject,
     parseProjectArgs,
 } = require("./project");
 
@@ -414,6 +414,10 @@ const askProjectName = async (input, source, projects, suggestion, { replace = t
                 return null;
             }
             warn("Use letters and digits, like my-playlist");
+            continue;
+        }
+        if (name === MIX) {
+            warn(`"${MIX}" is reserved (-p ${MIX} picks a random project) - pick another name`);
             continue;
         }
         if (projects[source]?.[name]) {

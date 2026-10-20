@@ -4,8 +4,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { resolveProject, parseProjectArgs, projectArgs, toKebab, deepMerge, listProjects, readData, writeData, cacheNote } = require("../scripts/project");
-const { settings, projects, cases } = require("./fixtures/project-cases.json");
+const { resolveProject, getProject, mixCandidates, pickMix, pickMixProject, parseProjectArgs, projectArgs, toKebab, deepMerge, listProjects, readData, writeData, cacheNote } = require("../scripts/project");
+const { settings, projects, cases, mixCases } = require("./fixtures/project-cases.json");
 
 // the same cases run in test/test_project.py, so both resolvers agree
 for (const { flags, expected, error } of cases) {
@@ -21,6 +21,76 @@ for (const { flags, expected, error } of cases) {
         assert.equal(project.dir, path.join("/root", project.folder));
     });
 }
+
+for (const { source, expected } of mixCases) {
+    test(`mixCandidates ${source ?? "(every source)"}`, () => {
+        assert.deepEqual(mixCandidates(settings, projects, { source: source ?? undefined }), expected);
+    });
+}
+
+test("pickMix cycles through every candidate before one comes back, a round never starts with the last one", () => {
+    assert.deepEqual(pickMix(["a", "b", "c"], {}, () => 0), { id: "a", state: { used: ["a"], last: "a" } });
+    assert.deepEqual(pickMix(["a", "b", "c"], { used: ["a"], last: "a" }, () => 0.99), { id: "c", state: { used: ["a", "c"], last: "c" } });
+    assert.equal(pickMix(["a", "b", "c"], { used: ["a", "c"], last: "c" }, () => 0).id, "b");
+    // a new round, without c (the last one)
+    assert.deepEqual(pickMix(["a", "b", "c"], { used: ["a", "b", "c"], last: "c" }, () => 0.99), { id: "b", state: { used: ["b"], last: "b" } });
+    // gone projects drop out of the round, a new one joins it
+    assert.equal(pickMix(["b", "d"], { used: ["a", "b"], last: "b" }, () => 0).id, "d");
+    assert.equal(pickMix(["a"], { used: ["a"], last: "a" }, () => 0).id, "a");
+    assert.equal(pickMix([], {}), null);
+    // the old { last } state still works
+    assert.equal(pickMix(["a", "b"], { last: "a" }, () => 0).id, "a");
+});
+
+test("pickMix shows every candidate once per round", () => {
+    const candidates = ["a", "b", "c", "d"];
+    let state = {};
+    const picks = [];
+    for (let i = 0; i < 12; i++) {
+        ({ id: picks[i], state } = pickMix(candidates, state));
+    }
+    for (let round = 0; round < 3; round++) {
+        assert.deepEqual(picks.slice(round * 4, round * 4 + 4).sort(), candidates);
+    }
+    assert.ok(picks.every((id, i) => id !== picks[i - 1]));
+});
+
+test("pickMixProject skips projects without items and remembers its pick in projects/.mix.json", (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
+    t.mock.method(console, "log", () => {});
+    try {
+        for (const id of ["local/cats", "local/dogs", "spotify/album"]) {
+            writeData(resolveProject(settings, projects, { project: id }, root), { items: [{ id: "a" }] });
+        }
+        const picked = [];
+        for (let i = 0; i < 4; i++) {
+            picked.push(pickMixProject(settings, projects, undefined, root, () => 0).id);
+        }
+        // tmdb/series has no items, spotify/cats opts out, every one once per round
+        assert.deepEqual(picked, ["local/cats", "local/dogs", "spotify/album", "local/cats"]);
+        assert.deepEqual(JSON.parse(fs.readFileSync(path.join(root, "projects", ".mix.json"), "utf8")), { used: ["local/cats"], last: "local/cats" });
+        assert.equal(pickMixProject(settings, projects, "spotify", root).id, "spotify/album");
+        assert.throws(() => pickMixProject(settings, projects, "tmdb", root), /No tmdb projects in the mix/);
+        assert.throws(() => pickMixProject(settings, projects, "instagram", root), /Unknown source/);
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("getProject only takes -p mix when asked to", (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
+    t.mock.method(console, "log", () => {});
+    try {
+        fs.writeFileSync(path.join(root, "settings.json"), JSON.stringify(settings));
+        fs.writeFileSync(path.join(root, "projects.json"), JSON.stringify(projects));
+        writeData(resolveProject(settings, projects, { project: "dogs" }, root), { items: [{ id: "a" }] });
+        assert.throws(() => getProject({ project: "mix" }, root), /-p mix only works with collage, random-meet, daily-new and meet/);
+        assert.equal(getProject({ project: "mix" }, root, { mix: true }).id, "local/dogs");
+        assert.equal(getProject({ project: "cats", source: "local" }, root, { mix: true }).id, "local/cats");
+    } finally {
+        fs.rmSync(root, { recursive: true, force: true });
+    }
+});
 
 test("resolveProject falls back to settings.json's default without projects.json's", () => {
     const { default: _, ...withoutDefault } = projects;

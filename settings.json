@@ -4,6 +4,7 @@
     "maxItems": 200,
     "imageSize": 640,
     "aspect": "1:1",
+    "allowMix": true,
     "collage": { "layout": "13x9/5", "canvasWidth": 1412, "gap": 8, "scale": 1, "skip": [] }
   },
   "sources": {

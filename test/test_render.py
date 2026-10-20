@@ -42,7 +42,7 @@ class RenderTest(unittest.TestCase):
             patch.start()
         self.root = root
 
-    def load_project(self, source, project):
+    def load_project(self, source, project, mix=False):
         return self.project
 
     def add_item(self, item_id, colour):

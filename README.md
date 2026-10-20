@@ -4,7 +4,7 @@
 >
 > — [Wikipedia](https://en.wikipedia.org/wiki/Anaglypta)
 
-Turn a Spotify playlist, a TMDb list of movies and series or a folder of photos into wallpaper. Anaglypta makes **a collage**: a grid of images around a big centrepiece (a random one or the newest), by default 92 square album covers, or posters in their own 2:3 shape, good as a desktop background or in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music, film (or cats).
+Turn a Spotify playlist, a TMDb list of movies and series or a folder of photos into wallpaper. Anaglypta makes **a collage**: a grid of images around a big centrepiece. It also let's you setup and automate backgrounds in Google Meet — an icebreaker, a conversation piece or just an excellent way to show off your awesome taste in music, film (or cats).
 
 ## Sources and projects
 
@@ -93,6 +93,13 @@ npm run collage -- -p local/cats    # the same, with its source
 npm run daily-new -- -s spotify     # the default spotify project
 ```
 
+With several projects, `-p mix` cycles through them: each run takes the next one of a shuffled round, so every project comes up once before any comes back. It works with `collage`, `random-meet`, `daily-new` and `meet`. Every project with something fetched is in the mix, unless it has `"allowMix": false` in `projects.json`. Add `-s` to mix only one source's projects:
+
+```sh
+npm run random-meet -- -p mix               # a random project as your Meet background
+npm run collage -- -s local -p mix          # a random local project
+```
+
 Spotify: every album appears once, if the playlist has several songs from the same album the first one added wins. Local: the project holds the newest `maxItems` images in the folder, by the file's date. Drop new photos in and the next `full` adds them, pushing the oldest out. Photos you delete from the folder are dropped, edited ones come back as new.
 
 `collage` and `random-meet` take an option for the middle of the collage, after `--`:
@@ -158,12 +165,12 @@ Written by `npm run setup`, ignored by git (see [`projects.example.json`](projec
 {
   "default": "spotify/album",
   "spotify": { "album": { "playlist": "https://open.spotify.com/playlist/..." } },
-  "local": { "cats": { "path": "~/Pictures/cats", "aspect": "2:3", "collage": { "layout": "auto" } } },
+  "local": { "cats": { "path": "~/Pictures/cats", "aspect": "2:3", "collage": { "layout": "auto" }, "allowMix": false } },
   "tmdb": { "series": { "list": "https://www.themoviedb.org/list/..." } }
 }
 ```
 
-Project names are folder names: lowercase letters, digits and `-`. A project can override any of the settings below, like `cats` does with portrait tiles and a layout that grows with the folder.
+Project names are folder names: lowercase letters, digits and `-`. A project can override any of the settings below, like `cats` does with portrait tiles and a layout that grows with the folder, and is left out of `-p mix`. `mix` itself can't be a project name.
 
 ### `settings.json`: how things look
 
@@ -174,6 +181,7 @@ Defaults for every project, under `defaults`, and per source under `sources.<sou
 | `default` | The default project when `projects.json` doesn't name one |
 | `maxItems` | The most items a project will hold (default `200`). At the limit, `full` and `daily-new` add nothing more |
 | `aspect` | The shape of the tiles: `1:1` (default), `2:3` (TMDb's default, posters), `3:2`, `16:9`, ... Images are cropped to it around the middle, never stretched |
+| `allowMix` | Whether `-p mix` may pick the project (default `true`) |
 | `imageSize` | The long side of the copies in `images/` (default `640`, TMDb `960`, big enough for the centrepiece). Copies are made again by themselves when this or `aspect` changes |
 | `sources.tmdb.maxCacheDays` | How long TMDb data and posters may be kept (`180`, TMDb's terms allow 6 months - don't raise it) |
 | `collage.layout` | The grid, see [Layouts](#layouts): `13x9/5` (default) or `auto` (TMDb's default) |
@@ -218,7 +226,7 @@ Or a new random Google Meet background every hour, 9–17 on weekdays (after `np
 0 9-17 * * 1-5 /path/to/anaglypta/cron.sh random-meet >> /path/to/anaglypta/meet.log 2>&1
 ```
 
-Options go after the command, like in the terminal but without `--`: `cron.sh random-meet --latest`, `cron.sh random-meet --fill` or `cron.sh daily-new -p local/cats`. Reload Meet (or start a new meeting) to see the new background.
+Options go after the command, like in the terminal but without `--`: `cron.sh random-meet --latest`, `cron.sh random-meet --fill`, `cron.sh random-meet -p mix` or `cron.sh daily-new -p local/cats`. Reload Meet (or start a new meeting) to see the new background.
 
 **3. Check it ran:** each run starts with a timestamped line in the log (`tail /path/to/anaglypta/daily.log`). `crontab -l` lists your jobs.
 

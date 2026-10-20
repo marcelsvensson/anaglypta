@@ -1,6 +1,7 @@
 """Shared helpers for collage.py and the sources: projects (the twin of scripts/project.js) and the square image cache."""
 import io
 import json
+import random
 import re
 import sys
 import time
@@ -21,6 +22,8 @@ except ImportError:
 ROOT = Path(__file__).resolve().parent.parent
 USER_AGENT = "anaglypta/1.0"
 NAME = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+MIX = "mix"  # -p mix: a random project (allowMix isn't false) instead of a named one, a reserved name
+MIX_COMMANDS = "collage, random-meet, daily-new and meet"
 PLAYLIST = re.compile(r"playlist[/:]([A-Za-z0-9]{22})(?![A-Za-z0-9])")
 TMDB_LIST = re.compile(r"list/(\d+)")
 
@@ -122,6 +125,8 @@ def resolve_project(settings, projects, source=None, project=None, root=ROOT):
     everything = [(s, name) for s in sources for name in projects.get(s, {})]
     add = "add one with `npm run setup`"
 
+    if project == MIX:
+        raise ValueError(f"-p {MIX} only works with {MIX_COMMANDS}")
     if project and "/" in project:
         split_source, project = split_id(project)
         if source and source != split_source:
@@ -163,17 +168,69 @@ def resolve_project(settings, projects, source=None, project=None, root=ROOT):
     return resolved
 
 
-def load_project(source=None, project=None):
-    """The project from settings.json + projects.json, exits with the reason when it's unknown."""
+def mix_candidates(settings, projects, source=None):
+    """The projects -p mix picks from (all of them, or the source's ones), unless they set allowMix: false. Sorted ids."""
+    candidates = []
+    for s in settings.get("sources", {}):
+        if source and s != source:
+            continue
+        for name in projects.get(s, {}):
+            try:
+                resolved = resolve_project(settings, projects, s, name)
+            except ValueError:
+                continue  # a broken entry (a bad name) is left out, naming it with -p still explains why
+            if resolved.get("allowMix") is not False:
+                candidates.append(resolved["id"])
+    return sorted(candidates)
+
+
+def pick_mix(candidates, state=None, rand=random.random):
+    """Cycles through the candidates in random order, each once per round. state = { used: [ids this round], last }.
+    A new round never starts with the one the last round ended on (unless it's the only one). (id, new state), or None."""
+    state = state or {}
+    used = [c for c in state.get("used", []) if c in candidates]
+    pool = [c for c in candidates if c not in used]
+    if not pool:
+        used = []
+        pool = [c for c in candidates if c != state.get("last")] if len(candidates) > 1 else candidates
+    if not pool:
+        return None
+    chosen = pool[int(rand() * len(pool))]
+    return chosen, {"used": [*used, chosen], "last": chosen}
+
+
+def pick_mix_project(settings, projects, source=None, root=ROOT, rand=random.random):
+    """-p mix: the next project of the round that has items (one without would need fetching first), remembered in projects/.mix.json."""
+    if source and source not in settings.get("sources", {}):
+        raise ValueError(f"Unknown source \"{source}\" - the sources are: {', '.join(settings.get('sources', {}))}")
+    candidates = mix_candidates(settings, projects, source)
+    ready = [c for c in candidates if read_data(resolve_project(settings, projects, project=c, root=root))["items"]]
+    empty = [c for c in candidates if c not in ready]
+    if empty:
+        print(f"Mix: leaving out {', '.join(empty)} (nothing fetched yet, run `npm run full -- -p <project>`)")
+    state = Path(root) / "projects" / ".mix.json"
+    chosen, new_state = pick_mix(ready, read_json(state, {}), rand) or (None, None)
+    if not chosen:
+        raise ValueError(f"No {source + ' ' if source else ''}projects in the mix - they all have allowMix: false or nothing fetched yet")
+    write_json(state, new_state)
+    print(f"Mix: {chosen}")
+    return resolve_project(settings, projects, project=chosen, root=root)
+
+
+def load_project(source=None, project=None, mix=False):
+    """The project from settings.json + projects.json, exits with the reason when it's unknown. mix: -p mix picks one."""
+    settings, projects = read_json(ROOT / "settings.json", {}), read_json(ROOT / "projects.json", {})
     try:
-        return resolve_project(read_json(ROOT / "settings.json", {}), read_json(ROOT / "projects.json", {}), source, project, ROOT)
+        if mix and project == MIX:
+            return pick_mix_project(settings, projects, source, ROOT)
+        return resolve_project(settings, projects, source, project, ROOT)
     except ValueError as error:
         sys.exit(f"❌ {error}")
 
 
 def add_project_args(parser):
     parser.add_argument("-s", "--source", help="the image source (spotify, local), default: the default project's")
-    parser.add_argument("-p", "--project", help="the project name (or source/name), default: the default project")
+    parser.add_argument("-p", "--project", help="the project name (or source/name), default: the default project. collage, random-meet, daily-new and meet also take mix: a random project")
 
 
 def items_path(project):

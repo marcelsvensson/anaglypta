@@ -102,6 +102,7 @@ test("cronLinesFor sorts the cron.sh lines of a project into failing and moving 
         "2 2 * * * /a/cron.sh collage --project=cats",
         "3 3 * * * cd /x && npm run collage -- -p cats",
         "4 4 * * * /usr/bin/backup cats",
+        "7 7 * * * /a/cron.sh random-meet -p mix",
     ].join("\n");
     const settings = { default: "local/cats", sources: { spotify: {}, local: {} } };
     const projects = { default: "local/cats", spotify: { album: {} }, local: { cats: {}, dogs: {} } };
