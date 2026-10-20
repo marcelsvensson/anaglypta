@@ -102,7 +102,7 @@ def parse_list_id(text):
 
 
 def deep_merge(*layers):
-    """Dicts merge key by key (collage.center too), anything else (numbers, lists like skip) is replaced."""
+    """Dicts merge key by key (collage too), anything else (numbers, lists like skip) is replaced."""
     merged = {}
     for layer in layers:
         for key, value in (layer or {}).items():

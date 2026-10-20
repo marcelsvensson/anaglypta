@@ -15,8 +15,9 @@ import collage  # noqa: E402
 import common  # noqa: E402
 
 COLOURS = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
-COLLAGE = {"col": 4, "row": 3, "width": 10, "height": 10, "scale": 1, "gap": 2,
-           "center": {"col": 1, "row": 1, "size": 1}, "skip": []}
+# 4x3 cells of 10x10 (4 tiles and 5 gaps of 2 make 50 pixels), the 1x1 centre at (1, 1)
+COLLAGE = {"layout": "4x3/1", "canvasWidth": 50, "scale": 1, "gap": 2, "skip": []}
+CENTER = {"col": 1, "row": 1, "size": 1}
 
 
 class RenderTest(unittest.TestCase):
@@ -67,7 +68,7 @@ class RenderTest(unittest.TestCase):
             collage.main()
         image = Image.open(self.dir / "collage.jpg").convert("RGB")
         self.assertEqual(image.size, common.canvas_size(4, 3, 10, 10, 2))
-        cells = collage.free_cells(4, 3, COLLAGE["center"], [])
+        cells = collage.free_cells(4, 3, CENTER, [])
         # album0 is in the middle, so album1 and album2 fill the first cells, the duplicate of album0 gets none
         for (c, r), colour in zip(cells, COLOURS[1:]):
             x, y = common.cell_xy(c, r, 10, 10, 2)
@@ -90,7 +91,7 @@ class RenderTest(unittest.TestCase):
         x, y = common.cell_xy(1, 1, 10, 10, 2)
         centre = self.colour_at(image, x + 5, y + 5)
         cells = []
-        for c, r in collage.free_cells(4, 3, COLLAGE["center"], []):
+        for c, r in collage.free_cells(4, 3, CENTER, []):
             x, y = common.cell_xy(c, r, 10, 10, 2)
             colour = self.colour_at(image, x + 5, y + 5)
             if max(colour) > 30:
@@ -132,7 +133,7 @@ class RenderTest(unittest.TestCase):
 
     def test_collage_centrepiece_spans_several_cells(self):
         # a 5x5 grid with a 3x3 centre, like the real 5x5 one: the cover must cover all 9 cells and the gaps between them
-        self.project["collage"] = {**COLLAGE, "col": 5, "row": 5, "center": {"col": 1, "row": 1, "size": 3}}
+        self.project["collage"] = {**COLLAGE, "layout": "5x5/3", "canvasWidth": 62}
         with mock.patch.object(sys, "argv", ["test", "--latest"]), redirect_stdout(io.StringIO()):
             collage.main()
         image = Image.open(self.dir / "collage.jpg").convert("RGB")

@@ -85,8 +85,8 @@ def auto_layout(aspect, items, canvas_width=DEFAULT_CANVAS_WIDTH, gap=DEFAULT_GA
 
 
 def resolve(collage, aspect, items, override=None):
-    """The grid to draw: { col, row, width, height, gap, scale, center: { col, row, size }, layout }.
-    override is --layout. Settings from before layouts (col, row, width, height, center) still win over the layout."""
+    """The grid to draw: { col, row, width, height, gap, scale, center: { col, row, size }, layout }, from the project's
+    collage settings (layout, canvasWidth, gap, scale). override is --layout."""
     gap = collage.get("gap", DEFAULT_GAP)
     canvas_width = collage.get("canvasWidth", DEFAULT_CANVAS_WIDTH)
     layout = override or collage.get("layout", DEFAULT_LAYOUT)
@@ -95,20 +95,10 @@ def resolve(collage, aspect, items, override=None):
         col, row, size = picked["col"], picked["row"], picked["size"]
     else:
         col, row, size = parse_layout(layout)
-
-    center = {}
-    width = height = None
-    if not override:
-        col, row = collage.get("col", col), collage.get("row", row)
-        center = dict(collage.get("center", {}))
-        size = center.get("size", size)
-        if "width" in collage and "height" in collage:
-            width, height = collage["width"], collage["height"]
-    if width is None:
-        width, height = tile_size(col, aspect, canvas_width, gap)
+    width, height = tile_size(col, aspect, canvas_width, gap)
     return {
         "col": col, "row": row, "width": width, "height": height, "gap": gap, "scale": collage.get("scale", 1),
-        "center": {"col": center.get("col", (col - size) // 2), "row": center.get("row", (row - size) // 2), "size": size},
+        "center": {"col": (col - size) // 2, "row": (row - size) // 2, "size": size},
         "layout": f"{col}x{row}/{size}",
     }
 

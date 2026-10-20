@@ -15,8 +15,6 @@ from common import (ROOT, add_project_args, canvas_size, cell_xy, ensure_image, 
                     read_items, report_expired, warn)
 from layout import grid_table, resolve
 
-# the default layout's centre (13x9/5), kept for tests and older settings
-DEFAULT_CENTER = {"col": 4, "row": 2, "size": 5}
 # a small copy of the collage, saved next to it as collage_thumbnail.jpg (72 dpi), scaled to cover and cropped in the centre, never stretched
 THUMBNAIL_SIZE = (97, 68)
 
@@ -33,14 +31,28 @@ def free_cells(col, row, center, skip):
             if not in_center(c, r) and (c, r) not in skipped]
 
 
-def load_centerpiece(project, centre_item, size):
-    """The centre item's image cropped to size, None (an empty centre) when it can't be read."""
-    path = ensure_image(project, centre_item)
-    if not path:
-        warn("No image for the centrepiece - leaving the centre empty")
-        return None
-    with Image.open(path) as image:
-        return ImageOps.fit(image.convert("RGB"), size, Image.Resampling.LANCZOS)
+def grid_cells(grid, skip=(), fill=False):
+    """The cells to fill for a grid from layout.resolve, in fill order. fill: no centrepiece, the centre cells too."""
+    center = {**grid["center"], "size": 0} if fill else grid["center"]
+    return free_cells(grid["col"], grid["row"], center, skip)
+
+
+def draw(grid, tiles, centre=None):
+    """The collage for a grid from layout.resolve: tiles = [((col, row), image path)], centre = the centrepiece's image
+    path (None leaves the middle empty). Everything is cropped to fit, never stretched."""
+    width, height, scale, gap = (grid[key] for key in ("width", "height", "scale", "gap"))
+    cell_width, cell_height = width * scale, height * scale
+    canvas = Image.new("RGB", canvas_size(grid["col"], grid["row"], cell_width, cell_height, gap), "black")
+    for (c, r), path in tiles:
+        canvas.paste(load_tile(path, width, height, scale), cell_xy(c, r, cell_width, cell_height, gap))
+    if centre:
+        center = grid["center"]
+        size = center["size"]
+        box = (size * cell_width + (size - 1) * gap, size * cell_height + (size - 1) * gap)
+        with Image.open(centre) as image:
+            canvas.paste(ImageOps.fit(image.convert("RGB"), box, Image.Resampling.LANCZOS),
+                         cell_xy(center["col"], center["row"], cell_width, cell_height, gap))
+    return canvas
 
 
 def main():
@@ -74,13 +86,7 @@ def main():
         grid = resolve(collage, aspect, len(items), args.layout)
     except ValueError as error:
         sys.exit(f"❌ {error}")
-    col, row, width, height, scale, gap = (grid[key] for key in ("col", "row", "width", "height", "scale", "gap"))
-    cell_width, cell_height = width * scale, height * scale
-    center = grid["center"]
-    if args.fill:
-        # no centrepiece: the centre cells get images like the rest
-        center = {**center, "size": 0}
-    cells = free_cells(col, row, center, collage.get("skip", []))
+    cells = grid_cells(grid, collage.get("skip", []), args.fill)
 
     # an item in the middle doesn't get a grid cell as well
     centre_item = None if args.fill else items[-1] if args.latest else random.choice(items)
@@ -91,21 +97,12 @@ def main():
     else:
         chosen = pool[-len(cells):]
 
-    canvas = Image.new("RGB", canvas_size(col, row, cell_width, cell_height, gap), "black")
-    drawn = 0
-    for (c, r), item in zip(cells, chosen):
-        path = ensure_image(project, item)
-        if path is None:
-            continue
-        canvas.paste(load_tile(path, width, height, scale), cell_xy(c, r, cell_width, cell_height, gap))
-        drawn += 1
-
-    if not args.fill:
-        size = center["size"]
-        center_size = (size * cell_width + (size - 1) * gap, size * cell_height + (size - 1) * gap)
-        centerpiece = load_centerpiece(project, centre_item, center_size)
-        if centerpiece:
-            canvas.paste(centerpiece, cell_xy(center["col"], center["row"], cell_width, cell_height, gap))
+    tiles = [(cell, path) for cell, path in ((cell, ensure_image(project, item)) for cell, item in zip(cells, chosen)) if path]
+    centre = ensure_image(project, centre_item) if centre_item else None
+    if centre_item and not centre:
+        warn("No image for the centrepiece - leaving the centre empty")
+    canvas = draw(grid, tiles, centre)
+    drawn = len(tiles)
 
     output = project["dir"] / "collage.jpg"
     canvas.save(output, quality=95)

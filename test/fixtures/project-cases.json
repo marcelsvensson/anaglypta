@@ -5,7 +5,7 @@
       "maxItems": 200,
       "imageSize": 640,
       "allowMix": true,
-      "collage": { "col": 13, "row": 9, "gap": 8, "center": { "col": 4, "row": 2, "size": 5 }, "skip": [[12, 8]] }
+      "collage": { "layout": "13x9/5", "gap": 8, "skip": [[12, 8]] }
     },
     "sources": { "spotify": {}, "local": { "maxItems": 100 }, "tmdb": { "allowMix": false } }
   },
@@ -16,7 +16,7 @@
       "cats": { "playlist": "37i9dQZF1DXcBWIGoYBM5M", "collage": { "skip": [] }, "allowMix": false }
     },
     "local": {
-      "cats": { "path": "/pics/cats", "collage": { "center": { "size": 3 } } },
+      "cats": { "path": "/pics/cats", "collage": { "layout": "11x5/3" } },
       "dogs": { "path": "/pics/dogs", "maxItems": 30 },
       "Bad_Name": { "path": "/pics/bad" }
     },
@@ -32,7 +32,7 @@
       "expected": {
         "source": "local", "name": "cats", "id": "local/cats", "folder": "projects/local/cats", "path": "/pics/cats",
         "maxItems": 100, "imageSize": 640,
-        "collage": { "col": 13, "row": 9, "gap": 8, "center": { "col": 4, "row": 2, "size": 3 }, "skip": [[12, 8]] }
+        "collage": { "layout": "11x5/3", "gap": 8, "skip": [[12, 8]] }
       }
     },
     {
@@ -43,7 +43,7 @@
       "flags": { "project": "spotify/cats" },
       "expected": {
         "source": "spotify", "name": "cats", "playlistId": "37i9dQZF1DXcBWIGoYBM5M",
-        "collage": { "col": 13, "row": 9, "gap": 8, "center": { "col": 4, "row": 2, "size": 5 }, "skip": [] }
+        "collage": { "layout": "13x9/5", "gap": 8, "skip": [] }
       }
     },
     { "flags": { "source": "local", "project": "cats" }, "expected": { "source": "local", "name": "cats" } },

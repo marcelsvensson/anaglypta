@@ -4,8 +4,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from collage import DEFAULT_CENTER, free_cells  # noqa: E402
+from collage import free_cells, grid_cells  # noqa: E402
 from layout import auto_layout, grid_table, layouts, parse_layout, resolve, tile_size  # noqa: E402
+
+# the default layout, 13x9/5: the 5x5 centre starts at (4, 2)
+DEFAULT_CENTER = resolve({}, (1, 1), 0)["center"]
 
 
 class CollageCellsTest(unittest.TestCase):
@@ -29,6 +32,13 @@ class CollageCellsTest(unittest.TestCase):
 
     def test_a_centre_of_size_0_leaves_every_cell_free(self):
         self.assertEqual(len(free_cells(13, 9, {**DEFAULT_CENTER, "size": 0}, [])), 13 * 9)
+
+    def test_grid_cells_with_and_without_a_centrepiece(self):
+        grid = resolve({}, (1, 1), 0)
+        self.assertEqual(DEFAULT_CENTER, {"col": 4, "row": 2, "size": 5})
+        self.assertEqual(len(grid_cells(grid)), 92)
+        self.assertEqual(len(grid_cells(grid, [[12, 8]])), 91)
+        self.assertEqual(len(grid_cells(grid, fill=True)), 117)
 
 
 class LayoutsTest(unittest.TestCase):
@@ -70,10 +80,10 @@ class LayoutsTest(unittest.TestCase):
         self.assertEqual(grid["center"], {"col": 4, "row": 1, "size": 3})
         self.assertEqual(resolve({"layout": "auto"}, (2, 3), 47)["layout"], "11x5/3")
 
-    def test_older_settings_still_win_unless_a_layout_is_asked_for(self):
+    def test_settings_from_before_layouts_are_ignored(self):
         old = {"col": 4, "row": 3, "width": 10, "height": 10, "center": {"col": 1, "row": 1, "size": 1}}
         grid = resolve(old, (1, 1), 3)
-        self.assertEqual((grid["col"], grid["row"], grid["width"], grid["center"]), (4, 3, 10, {"col": 1, "row": 1, "size": 1}))
+        self.assertEqual((grid["layout"], grid["width"], grid["center"]), ("13x9/5", 100, {"col": 4, "row": 2, "size": 5}))
         self.assertEqual(resolve(old, (2, 3), 47, "10x4/2")["layout"], "10x4/2")
 
     def test_grid_table_marks_what_fits(self):

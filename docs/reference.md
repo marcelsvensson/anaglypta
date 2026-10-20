@@ -1,0 +1,102 @@
+# Reference
+
+The details behind the [README](../README.md): every setting, how each source behaves, and what to do when something goes wrong.
+
+## `.env`: credentials
+
+Created by `npm run setup` from [`.example.env`](../.example.env). Never commit it.
+
+| Variable | | What |
+|---|---|---|
+| `CLIENT_ID` | Spotify | Your Spotify app's Client ID |
+| `TMDB_TOKEN` | TMDb | Your TMDb API Read Access Token |
+| `CLIENT_SECRET` | optional | Only for Spotify apps created before 2026 (instead of `npm run auth`) |
+| `SPOTIFY_MARKET` | optional | Country code such as `SE`, for track availability |
+| `SPOTIFY_AUTH_PORT` | optional | Port for the Spotify login, default `8888` |
+| `GOOGLE_MEET_BLOB_PATH`, `GOOGLE_MEET_BLOB_PATH_THUMBNAIL` | optional | The two Chrome files for your Google Meet background, see [below](#google-meet-by-hand) |
+
+## Settings
+
+[`settings.json`](../settings.json) has the defaults for every project under `defaults`, and per source under `sources.<source>`. A project in `projects.json` overrides both. Objects such as `collage` merge key by key, lists are replaced.
+
+| Setting | What |
+|---|---|
+| `default` | The default project when `projects.json` doesn't name one |
+| `maxItems` | The most items a project holds (`200`). At the limit, `full` and `daily-new` add nothing more |
+| `aspect` | The shape of the tiles: `1:1` (default), `2:3` (TMDb, posters), `3:2`, `16:9`, ... Images are cropped to it around the middle, never stretched |
+| `imageSize` | The long side of the copies in `images/` (`640`, TMDb `960`, big enough for the centrepiece). They're made again by themselves when this or `aspect` changes |
+| `allowMix` | Whether `-p mix` may pick the project (`true`) |
+| `collage.layout` | The grid: `COLSxROWS/CENTRE` like `13x9/5` (default), or `auto` (TMDb's default). See [Layouts](../README.md#layouts) |
+| `collage.canvasWidth` | About how wide the collage is, in pixels (`1412`). The tiles get their size from it |
+| `collage.gap` | Pixels between the tiles (`8`) |
+| `collage.scale` | How many times each tile is enlarged without smoothing, for a pixel look (`1`) |
+| `collage.skip` | Cells to leave empty, as `[col, row]` |
+| `sources.tmdb.maxCacheDays` | How long TMDb data and posters may be kept (`180`). TMDb's terms allow 6 months, so don't raise it |
+
+When a project has more images than the layout has cells, `npm run collage` picks at random from all of them.
+
+## Sources
+
+- **Spotify**: one item per album. Every album appears once: if the playlist has several songs from the same album, the first one added wins. `full` remembers how far into the playlist it got, and when songs are removed it looks through the playlist again from the start (albums you already have are skipped). Your playlist must be one you own or collaborate on.
+- **Local**: the image files directly in the folder (jpg, png, webp, gif, bmp, tiff, heic). Subfolders and hidden files are left alone. The project holds the newest `maxItems` images, by the file's date. New photos are added by the next `full`, pushing the oldest out. Deleted photos are dropped, and edited ones come back as new. A broken file shows up as a warning once and is skipped from then on.
+- **TMDb**: one poster per movie or series in a public list, in the list's order. The project follows the list: what you add shows up on the next `full` or `daily-new`, and what you remove is dropped. Entries without a poster are picked up once they have one.
+
+## How it works
+
+1. `npm run full` (and `daily-new`) asks the project's source for new items and adds them to `projects/<source>/<name>/items.json`, together with how far it has come.
+2. It then makes a copy of every new image in `images/`, cropped to the project's `aspect`. Spotify covers and TMDb posters are downloaded for this, and photos are turned upright. A failed download is tried again on the next run.
+3. `npm run collage` draws `collage.jpg` (and the 97×68 `collage_thumbnail.jpg`) from `images/` with Python/Pillow. It works offline, which is good for a `random-meet` from cron on a laptop.
+
+Everything generated (`projects/`) and `projects.json` are ignored by git. `npm run clean` removes what can be rebuilt (every project's `images/`), and `npm run reset` takes one project back to a fresh start.
+
+## TMDb's 6-month limit
+
+TMDb's terms allow caching for at most 6 months. Anaglypta keeps to that by itself, without an extra cron job:
+
+- `full` and `daily-new` check the list again and download posters older than 150 days again, so a scheduled `daily-new` keeps everything fresh.
+- `collage`, `random-meet` and `npm run setup` warn when posters are within 30 days of the limit. `collage` and `random-meet` remove what's past 6 months, with a warning. A TMDb project that's never fetched again slowly empties itself.
+- `npm run reset`, or removing the project in setup, deletes everything at once.
+
+## Google Meet by hand
+
+`npm run setup:meet` normally finds the files. To set them yourself: upload a background in Meet, then point `GOOGLE_MEET_BLOB_PATH` (the large file) and `GOOGLE_MEET_BLOB_PATH_THUMBNAIL` (the small one) at the two newest files under `~/Library/Application Support/Google/Chrome/Default/IndexedDB/https_meet.google.com_0.indexeddb.blob` (`ls -lt` helps). Leave both empty and the step is skipped. `npm run meet -- --dry-run` shows what would be copied.
+
+There's one Meet background for all projects: it gets the collage of the project you run the command for.
+
+## Cron on macOS
+
+- Nothing in the log at all usually means cron needs **Full Disk Access** (System Settings → Privacy & Security → Full Disk Access, add `/usr/sbin/cron`). That happens when the project lives in a protected folder such as Documents or Desktop.
+- Cron doesn't run while the Mac sleeps, and doesn't catch up afterwards. A missed `daily-new` simply happens the next day.
+- `couldn't find node/npm` in the log: install Node with asdf, nvm or Homebrew, or add a `PATH=...` line with your Node folder at the top of your crontab.
+- Each run starts with a timestamped line in the log. `crontab -l` lists your jobs.
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `Not logged in to Spotify` | Run `npm run auth`. |
+| `Spotify returned no tracks` / `403` on the playlist | You must own or collaborate on the playlist, and be logged in with `npm run auth`. |
+| `403` on everything | The app owner needs Spotify Premium, and other users must be added under **User Management** in the app. |
+| `invalid_grant` | The login expired or was revoked. Run `npm run auth` again. |
+| `INVALID_CLIENT: Invalid redirect URI` | The Redirect URI in the app must be exactly `http://127.0.0.1:8888/callback` (or your `SPOTIFY_AUTH_PORT`). |
+| `Port 8888 is busy` | Set `SPOTIFY_AUTH_PORT` in `.env` and add the matching Redirect URI to the app. |
+| `Missing TMDB_TOKEN` / TMDb `401` | Add the API Read Access Token (not the API Key) to `.env`, or run `npm run setup`. |
+| TMDb `404` on the list / `TMDb returned no list items` | The list has to be public, and the link or id in `projects.json` must be the list's. |
+| `Python packages missing` | Run `npm run setup:python`. |
+| `Nothing fetched for ... yet` | Run `npm run full` first (with the same `-p`). |
+| `Unknown project` | Check the name with `npm run setup` (it lists your projects), or add the project there. |
+| `... is a project in spotify and local` | Two sources have a project with that name: use `-p source/name`. |
+| `-p mix only works with ...` | `mix` picks a project for `collage`, `random-meet`, `daily-new` and `meet` only. Name the project for the others. |
+| `No projects in the mix` | Every project has `"allowMix": false` or nothing fetched yet. |
+| `Skipped photo.heic` | HEIC needs pillow-heif: run `npm run setup:python`. Other skipped files are broken or not images. |
+| `... already has 200 albums` / `images` | You've reached `maxItems`. Raise it in `settings.json` or for the project in `projects.json`, or `npm run reset` to start over. |
+| `npm error Unknown cli flag` | Put `--` before the options: `npm run collage -- --cover`. |
+| `Google Meet isn't set up` | `random-meet` needs `npm run setup:meet` first (and again after a Chrome update or a new upload). |
+
+Not errors: `No new albums in the playlist` (everything is already in), `Skipped ... without a poster on TMDb` (picked up once it has one), `The playlist got shorter - checking it from the start`.
+
+## Development
+
+`npm test` runs the Node tests (`node:test`) and the Python tests (`unittest`) in a couple of seconds. They need no network, no Spotify account and no `.env`: responses come from `test/fixtures/`, and the image tests draw solid-colour images in a temp folder.
+
+The README's example images are drawn by the real layout code from made-up colour tiles: run `node scripts/python.js docs/make-images.py` to make them again after changing the layouts.

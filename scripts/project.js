@@ -39,7 +39,7 @@ const toKebab = (text) => String(text ?? "")
 
 const isPlainObject = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
-// objects merge key by key (collage.center too), anything else (numbers, lists like skip) is replaced
+// objects merge key by key (collage too), anything else (numbers, lists like skip) is replaced
 const deepMerge = (...layers) => layers.reduce((merged, layer) => {
     for (const [key, value] of Object.entries(layer ?? {})) {
         merged[key] = isPlainObject(value) && isPlainObject(merged[key]) ? deepMerge(merged[key], value) : value;
