@@ -4,10 +4,9 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { resolveProject, getProject, mixCandidates, pickMix, pickMixProject, parseProjectArgs, projectArgs, toKebab, deepMerge, listProjects, readData, writeData, cacheNote } = require("../scripts/project");
+const { resolveProject, getProject, mixCandidates, pickMix, pickMixProject, parseProjectArgs, projectArgs, toKebab, deepMerge, listProjects, readData, writeData, cacheNote, expireCache, reportExpired } = require("../scripts/project");
 const { settings, projects, cases, mixCases } = require("./fixtures/project-cases.json");
 
-// the same cases run in test/test_project.py, so both resolvers agree
 for (const { flags, expected, error } of cases) {
     test(`resolveProject ${JSON.stringify(flags)}`, () => {
         if (error) {
@@ -151,7 +150,7 @@ test("daily-new passes the project to every step and other options to the collag
     const { steps } = require("../scripts/daily-new");
     const all = steps({ source: "local", name: "cats" }, ["--fill"]);
     assert.ok(all.every((args) => args.join(" ").includes("--source local --project cats")));
-    assert.deepEqual(all.map(([script]) => script), ["fetch.js", "python.js", "meet.js"]);
+    assert.deepEqual(all.map(([script]) => script), ["fetch.js", "collage.js", "meet.js"]);
     assert.ok(all[1].includes("--fill") && all[1].includes("--latest"));
 });
 
@@ -193,4 +192,64 @@ test("cacheNote warns about images close to or past the cache limit, only for so
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
+});
+
+// expireCache: the cache limit of sources like tmdb, with fixed dates
+const NOW = Date.parse("2026-10-20T12:00:00");
+const DAY = 86400000;
+
+const expireProject = (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
+    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    const project = { source: "tmdb", name: "s", id: "tmdb/s", dir: path.join(root, "s"), maxCacheDays: 180 };
+    const imageFile = (id) => path.join(project.dir, "images", `${id}.jpg`);
+    // an item fetched days ago, with an image downloaded imageDaysAgo (none when undefined)
+    const item = (id, fetchedDaysAgo, imageDaysAgo) => {
+        if (imageDaysAgo !== undefined) {
+            fs.mkdirSync(path.dirname(imageFile(id)), { recursive: true });
+            fs.writeFileSync(imageFile(id), "x");
+            const when = new Date(NOW - imageDaysAgo * DAY);
+            fs.utimesSync(imageFile(id), when, when);
+        }
+        return { id, fetchedAt: new Date(NOW - fetchedDaysAgo * DAY).toISOString().slice(0, 10) };
+    };
+    return { project, imageFile, item };
+};
+
+test("expireCache removes what's past the limit and counts what's close", (t) => {
+    const { project, imageFile, item } = expireProject(t);
+    writeData(project, { items: [item("fresh", 10, 149), item("soon", 10, 151), item("old-image", 10, 181), item("old-item", 181, 10), item("no-image", 10)] });
+    assert.deepEqual(expireCache(project, NOW), { items: 1, images: 1, soon: 1 });
+    assert.deepEqual(readData(project).items.map(({ id }) => id), ["fresh", "soon", "old-image", "no-image"]);
+    assert.ok(fs.existsSync(imageFile("fresh")));
+    assert.ok(!fs.existsSync(imageFile("old-image")), "downloaded again when needed");
+    assert.ok(!fs.existsSync(imageFile("old-item")), "goes with its item");
+});
+
+test("expireCache uses addedAt for items without fetchedAt, and keeps items without a date", (t) => {
+    const { project } = expireProject(t);
+    writeData(project, { items: [{ id: "a", addedAt: "2026-01-01" }, { id: "b", addedAt: "not a date" }, { id: "c" }] });
+    assert.equal(expireCache(project, NOW).items, 1);
+    assert.deepEqual(readData(project).items.map(({ id }) => id), ["b", "c"]);
+});
+
+test("expireCache never touches sources without a limit", (t) => {
+    const { project, item } = expireProject(t);
+    delete project.maxCacheDays;
+    writeData(project, { items: [item("old", 999, 999)] });
+    assert.deepEqual(expireCache(project, NOW), { items: 0, images: 0, soon: 0 });
+    assert.equal(readData(project).items.length, 1);
+});
+
+test("reportExpired explains what happened", (t) => {
+    const { project } = expireProject(t);
+    const errors = t.mock.method(console, "error", () => {});
+    const logs = t.mock.method(console, "log", () => {});
+    reportExpired(project, { items: 2, images: 1, soon: 3 });
+    reportExpired(project, { items: 0, images: 0, soon: 0 });
+    const text = (mock) => mock.mock.calls.map((call) => call.arguments.join(" ")).join("\n");
+    assert.match(text(errors), /2 item\(s\) of tmdb\/s were last fetched over 180 days ago/);
+    assert.match(text(errors), /npm run full -- -p tmdb\/s/);
+    assert.match(text(logs), /3 image\(s\) of tmdb\/s expire within 30 days/);
+    assert.equal(errors.mock.callCount() + logs.mock.callCount(), 3);
 });

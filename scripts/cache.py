@@ -1,11 +1,11 @@
 """Makes the cached copy (cropped to the project's aspect) of every item in a project that doesn't have one yet (fetch.js runs it after every fetch), so
 collage.py doesn't need the network later. Failed downloads are tried again on the next run.
 
-usage: python scripts/cache.py [-s <source>] [-p <project>]
+fetch.js runs it with the project it resolved: runPython("scripts/cache.py", project) in scripts/python.js.
 """
 import argparse
 
-from common import Progress, add_project_args, ensure_image, expire_cache, image_ready, load_project, read_items, warn
+from common import Progress, add_project_args, ensure_image, image_ready, load_project, read_items, warn
 
 # this many failures in a row before anything worked: probably offline, the rest would only fail slowly too
 GIVE_UP_AFTER = 3
@@ -36,9 +36,7 @@ def main():
     add_project_args(parser)
     args = parser.parse_args()
 
-    project = load_project(args.source, args.project)
-    # what's past the limit goes first (quietly: full/daily-new just renewed what they could), then it's downloaded again
-    expire_cache(project)
+    project = load_project(args.project_json)
     made, failed, skipped = cache(project)
     if skipped:
         warn(f"Gave up after {failed} failed images in a row (offline?) - {skipped + failed} are fetched on the next run")

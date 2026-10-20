@@ -2,10 +2,8 @@
 // projects/<source>/<name>/items.json, then makes the square copies that are missing (cache.py), so the collage works
 // offline. --limit n: the most new items one run adds (daily-new uses 1), no --limit = all of them, up to maxItems.
 // A new source = a fetcher in scripts/sources/ plus a line in FETCHERS.
-const path = require("node:path");
-const { spawnSync } = require("node:child_process");
-
-const { ROOT, getProject, parseProjectArgs, projectArgs } = require("./project");
+const { getProject, parseProjectArgs, expireCache } = require("./project");
+const { runPython } = require("./python");
 
 // --limit <n> -> n, no --limit -> Infinity
 const parseLimit = (argv) => {
@@ -20,24 +18,22 @@ const parseLimit = (argv) => {
     return limit;
 };
 
-// runs a python script for the project through python.js (the .venv python)
-const runPython = (script, project, args = []) => {
-    const result = spawnSync(process.execPath, [path.join(__dirname, "python.js"), path.join(__dirname, script), ...projectArgs(project), ...args],
-        { cwd: ROOT, stdio: "inherit" });
-    if (result.status !== 0) {
+// a python script for the project, stops here when it fails (it said why)
+const python = (script, project, args) => {
+    if (runPython(script, project, args) !== 0) {
         throw new Error(`${script} failed`);
     }
 };
 
-// a python fetcher, it takes the same flags
-const python = (script) => (project, { limit }) => runPython(script, project, limit === Infinity ? [] : ["--limit", String(limit)]);
+// a python fetcher, it takes the same --limit
+const pythonFetcher = (script) => (project, { limit }) => python(script, project, limit === Infinity ? [] : ["--limit", String(limit)]);
 
 const FETCHERS = {
     spotify: (project, options) => {
         require("dotenv").config({ quiet: true });
         return require("./sources/spotify").fetchSpotify(project, { ...options, spotify: require("../api/spotify") });
     },
-    local: python("sources/local.py"),
+    local: pythonFetcher("scripts/sources/local.py"),
     tmdb: (project, options) => {
         require("dotenv").config({ quiet: true });
         return require("./sources/tmdb").fetchTmdb(project, { ...options, tmdb: require("../api/tmdb") });
@@ -58,7 +54,9 @@ const main = async () => {
         throw new Error(`Can't fetch from ${project.source} yet`);
     }
     await fetcher(project, { limit });
-    runPython("cache.py", project);
+    // what's past the source's cache limit goes first (quietly: the fetch just renewed what it could), cache.py downloads it again
+    expireCache(project);
+    python("scripts/cache.py", project, []);
 };
 
 if (require.main === module) {

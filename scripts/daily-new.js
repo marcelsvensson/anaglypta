@@ -9,7 +9,7 @@ const { ROOT, getProject, parseProjectArgs, projectArgs } = require("./project")
 
 const steps = (project, rest) => [
     ["fetch.js", ...projectArgs(project), "--limit", "1"],
-    ["python.js", "scripts/collage.py", "--latest", ...projectArgs(project), ...rest],
+    ["collage.js", "--latest", ...projectArgs(project), ...rest],
     ["meet.js", ...projectArgs(project)],
 ];
 

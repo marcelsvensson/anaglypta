@@ -169,7 +169,7 @@ def main():
 
     if args.limit is not None and args.limit < 1:
         sys.exit("❌ --limit needs a whole number of images, like --limit 1")
-    project = load_project(args.source or "local", args.project)
+    project = load_project(args.project_json)
     if project["source"] != "local":
         sys.exit(f"❌ {project['id']} isn't a local project")
     fetch(project, args.limit)

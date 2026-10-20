@@ -7,9 +7,9 @@
 // Experimental: Chrome's IndexedDB files are undocumented and may change with a Chrome update or a new upload.
 const fs = require("node:fs");
 const path = require("node:path");
-const { spawnSync } = require("node:child_process");
 
-const { ROOT, MIX, expandHome, getProject, parseProjectArgs, projectArgs } = require("./project");
+const { ROOT, MIX, expandHome, getProject, parseProjectArgs } = require("./project");
+const { drawCollage } = require("./collage");
 
 const KEYS = ["GOOGLE_MEET_BLOB_PATH", "GOOGLE_MEET_BLOB_PATH_THUMBNAIL"];
 
@@ -39,25 +39,17 @@ const planCopies = (env, { isFile }, dir) => {
     ].map(([image, target]) => ({ source: path.join(dir, image), target }));
 };
 
-// python.js runs a script with the project's .venv python, stops here when a step fails
-const python = (...args) => {
-    const result = spawnSync(process.execPath, [path.join(__dirname, "python.js"), ...args], { cwd: ROOT, stdio: "inherit" });
-    if (result.status !== 0) {
-        process.exit(result.status ?? 1);
-    }
-};
-
 const main = () => {
     const { source, project: name, rest } = parseProjectArgs(process.argv.slice(2));
     require("dotenv").config({ quiet: true });
-    const drawCollage = rest.includes("--collage");
+    const withCollage = rest.includes("--collage");
     // -p mix waits until Meet is set up, so it doesn't use up a pick when there's nothing to send it to
     const configured = KEYS.some((key) => process.env[key]);
     const project = configured || name !== MIX ? getProject({ source, project: name }, ROOT, { mix: true }) : null;
     const isFile = (file) => fs.statSync(file, { throwIfNoEntry: false })?.isFile() ?? false;
     const copies = configured ? planCopies(process.env, { isFile }, project.dir) : null;
     if (!copies) {
-        if (drawCollage) {
+        if (withCollage) {
             throw new Error("not set up - run `npm run setup:meet` first");
         }
         console.log("Google Meet not configured in .env - skipping");
@@ -65,8 +57,11 @@ const main = () => {
     }
 
     // --collage (npm run random-meet): a new random collage first, the other options (--cover, --latest, --fill) are for it
-    if (drawCollage) {
-        python("scripts/collage.py", "--randomize", ...projectArgs(project), ...rest.filter((arg) => !["--collage", "--dry-run"].includes(arg)));
+    if (withCollage) {
+        const status = drawCollage(project, ["--randomize", ...rest.filter((arg) => !["--collage", "--dry-run"].includes(arg))]);
+        if (status !== 0) {
+            process.exit(status);
+        }
     }
 
     for (const { source } of copies) {

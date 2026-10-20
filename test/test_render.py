@@ -26,7 +26,7 @@ class RenderTest(unittest.TestCase):
         root = Path(self.tmp.name)
         self.dir = root / "projects" / "spotify" / "album"
         # the cached 8x8 images match imageSize 8, so nothing is made again (or downloaded)
-        self.project = {"source": "spotify", "name": "album", "id": "spotify/album", "dir": self.dir, "collage": COLLAGE, "imageSize": 8}
+        self.project = {"source": "spotify", "name": "album", "id": "spotify/album", "folder": "projects/spotify/album", "dir": self.dir, "collage": COLLAGE, "imageSize": 8}
         self.items = []
         for i, colour in enumerate(COLOURS):
             self.add_item(f"album{i}", colour)
@@ -35,7 +35,6 @@ class RenderTest(unittest.TestCase):
         common.write_data(self.project, {"items": self.items})
 
         self.patches = [
-            mock.patch.object(collage, "ROOT", root),
             mock.patch.object(collage, "load_project", self.load_project),
             mock.patch.object(sys, "argv", ["test"]),
         ]
@@ -43,7 +42,7 @@ class RenderTest(unittest.TestCase):
             patch.start()
         self.root = root
 
-    def load_project(self, source, project, mix=False):
+    def load_project(self, project_json):
         return self.project
 
     def add_item(self, item_id, colour):

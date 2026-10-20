@@ -1,5 +1,5 @@
 // runs a python script with the project's .venv python (falls back to python3/python with Pillow installed)
-// usage: node scripts/python.js <script.py> [args...]
+// usage: node scripts/python.js <script.py> [args...], or runPython() for a project's script
 const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
@@ -18,6 +18,20 @@ const findPython = () => {
         return VENV_PYTHON;
     }
     return ["python3", "python"].find(hasPillow) ?? null;
+};
+
+// runs a python script (path from the repo root) for a project: the resolved project goes along as --project-json, so
+// python never reads settings.json or projects.json itself. returns the exit status (0 = fine, the script printed why not)
+const runPython = (script, project, args = []) => {
+    const python = findPython();
+    if (!python) {
+        throw new Error("Python packages missing - run `npm run setup:python` (needs Python 3)");
+    }
+    const result = spawnSync(python, [path.join(ROOT, script), "--project-json", JSON.stringify(project), ...args], { cwd: ROOT, stdio: "inherit" });
+    if (result.error) {
+        throw new Error(`Could not start ${python}: ${result.error.message}`);
+    }
+    return result.status ?? 1;
 };
 
 const main = () => {
@@ -44,4 +58,4 @@ if (require.main === module) {
     main();
 }
 
-module.exports = { VENV_PYTHON, hasPillow, hasPackages };
+module.exports = { VENV_PYTHON, hasPillow, hasPackages, runPython };

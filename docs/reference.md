@@ -47,6 +47,8 @@ When a project has more images than the layout has cells, `npm run collage` pick
 2. It then makes a copy of every new image in `images/`, cropped to the project's `aspect`. Spotify covers and TMDb posters are downloaded for this, and photos are turned upright. A failed download is tried again on the next run.
 3. `npm run collage` draws `collage.jpg` (and the 97×68 `collage_thumbnail.jpg`) from `images/` with Python/Pillow. It works offline, which is good for a `random-meet` from cron on a laptop.
 
+Node reads the settings, picks the project and hands it to the Python scripts, which only do the image work (Pillow, which also reads iPhone HEIC photos).
+
 Everything generated (`projects/`) and `projects.json` are ignored by git. `npm run clean` removes what can be rebuilt (every project's `images/`), and `npm run reset` takes one project back to a fresh start.
 
 ## TMDb's 6-month limit
