@@ -1,5 +1,6 @@
 """Builds projects/<source>/<name>/collage.mp4: a video background of random collages, each shown for a while (20 x 30 s
-by default, 10 minutes). Experimental: upload it in Google Meet as a background by hand.
+by default, 10 minutes). --still: collage.jpg as collage_still.mp4 instead, a one-frame video (the Meet background is a
+video, meet.js puts either in).
 
 The collages are padded to 1920x1080 on black (never cropped) and encoded with PyAV (H.264, its own bundled FFmpeg), at
 a low constant frame rate: an unchanged frame costs next to nothing, so the file stays small.
@@ -56,17 +57,31 @@ def duration(seconds):
     return f"{int(seconds // 60)}:{int(seconds % 60):02d}"
 
 
+def still(project):
+    """collage.jpg as collage_still.mp4: the Meet background only takes a video, this one just doesn't move."""
+    collage = project["dir"] / "collage.jpg"
+    if not collage.exists():
+        sys.exit(f"❌ {project['folder']}/collage.jpg is missing - run `npm run collage -- -p {project['id']}` first")
+    with Image.open(collage) as image:
+        frame = fit_frame(image.convert("RGB"))
+    write_video(project["dir"] / "collage_still.mp4", [(frame, 1)], fps=1)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     add_project_args(parser)
     add_centre_args(parser)
     parser.add_argument("--segments", type=int, default=20, help="how many collages (default 20)")
     parser.add_argument("--seconds", type=float, default=30, help="how long each is shown (default 30)")
+    parser.add_argument("--still", action="store_true", help="only the project's collage.jpg as a one-frame video (collage_still.mp4)")
     args = parser.parse_args()
     if args.segments < 1 or args.seconds <= 0:
         sys.exit("❌ --segments and --seconds need to be above 0, like --segments 20 --seconds 30")
 
     project = load_project(args.project_json)
+    if args.still:
+        still(project)
+        return
     items, grid = load_grid(project, args.layout)
     cells = grid_cells(grid, project["collage"].get("skip", []), args.fill)
 

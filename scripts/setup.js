@@ -123,16 +123,6 @@ const cronLinesFor = (crontab, id, before, after) => String(crontab ?? "").split
         return [{ line, named: Boolean(flags.project), to: flags.project ? null : after(flags) }];
     });
 
-// the two files Chrome writes when you upload a Meet background: of the files changed since `since`, the largest is the
-// image and the smallest its thumbnail. files = [{ path, size, mtimeMs }], returns { image, thumbnail, count } or null
-const pickBlobs = (files, since) => {
-    const fresh = files.filter((file) => file.mtimeMs >= since).sort((a, b) => b.size - a.size);
-    if (fresh.length < 2) {
-        return null;
-    }
-    return { image: fresh[0].path, thumbnail: fresh[fresh.length - 1].path, count: fresh.length };
-};
-
 // --- input that works for both a terminal and piped answers ---
 
 const createInput = () => {
@@ -291,74 +281,89 @@ const listFiles = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap(
 
 const tilde = (file) => file.replace(os.homedir(), "~");
 
+// the Meet background is a video (an uploaded image gets converted to a small webp, too small to put a collage in): the
+// Anaglypta card (assets/anaglypta.mp4), padded to CARD_BYTES so a collage video fits. Meet's upload only offers images
+// until this line has run in Chrome's console
+const MEET_CONSOLE_LINE = "document.querySelector('input[type=\"file\"]').setAttribute('accept', 'image/jpeg, image/png, video/mp4');";
+
+// npm run setup:meet
 const setupMeet = async (input, project) => {
+    const { KEY, CARD_BYTES, padTo, isMp4, readHead } = require("./meet");
     if (process.platform !== "darwin") {
-        warn("The Google Meet step only knows where Chrome keeps its files on macOS - see the README to set the two paths by hand");
+        warn("The Google Meet step only knows where Chrome keeps its files on macOS - see docs/reference.md to set the path by hand");
         return false;
     }
     const env = readEnv();
-    const isFile = (file) => fs.statSync(expandHome(file), { throwIfNoEntry: false })?.isFile() ?? false;
-    if (env.GOOGLE_MEET_BLOB_PATH || env.GOOGLE_MEET_BLOB_PATH_THUMBNAIL) {
-        if (![env.GOOGLE_MEET_BLOB_PATH, env.GOOGLE_MEET_BLOB_PATH_THUMBNAIL].every((file) => file && isFile(file))) {
-            warn("The Google Meet paths in .env don't point at two existing files (moved by Chrome, or folders) - let's find them again");
+    const blob = env[KEY] && expandHome(env[KEY]);
+    if (blob && fs.statSync(blob, { throwIfNoEntry: false })?.isFile()) {
+        if (isMp4(readHead(blob))) {
+            const answer = await input.ask("  Google Meet is set up. Find the file again (after a new upload or a Chrome update)? [y/N] ");
+            if (!isYes(answer)) {
+                ok("Google Meet is set up");
+                return true;
+            }
+        } else {
+            warn("Your Meet background is from an older setup (an image upload) - let's upload the Anaglypta card instead");
         }
-    }
-    if (env.GOOGLE_MEET_BLOB_PATH && env.GOOGLE_MEET_BLOB_PATH_THUMBNAIL
-            && isFile(env.GOOGLE_MEET_BLOB_PATH) && isFile(env.GOOGLE_MEET_BLOB_PATH_THUMBNAIL)) {
-        const answer = await input.ask("  Google Meet is already set up. Find the files again (after a new upload or a Chrome update)? [y/N] ");
-        if (answer === null || !/^y/i.test(answer.trim())) {
-            ok("Google Meet is set up");
-            return true;
-        }
+    } else if (blob) {
+        warn(`${KEY} in .env doesn't point at an existing file any more (moved by Chrome) - let's find it again`);
     }
 
-    const collage = path.join(project.dir, "collage.jpg");
-    const shown = `${project.folder}/collage.jpg`;
-    if (!fs.existsSync(collage)) {
-        const flags = `-- -p ${project.id}`;
-        warn(`No ${shown} yet - run \`npm run full ${flags}\` and \`npm run collage ${flags}\` first, then \`npm run setup:meet ${flags}\``);
-        return false;
-    }
-    const dirs = meetBlobDirs();
-    if (!dirs.length) {
-        warn("Couldn't find Chrome's Google Meet folder - open Google Meet in Chrome once, then run `npm run setup:meet` again");
-        return false;
-    }
-
-    const since = Date.now() - 2000;
+    // the padded card, in tmp-upload/ (ignored by git, easy to find in Chrome's file picker; the repo keeps the small one)
+    const card = path.join(ROOT, "tmp-upload", "anaglypta.mp4");
+    fs.mkdirSync(path.dirname(card), { recursive: true });
+    fs.writeFileSync(card, padTo(fs.readFileSync(path.join(ROOT, "assets", "anaglypta.mp4")), CARD_BYTES));
+    spawnSync("pbcopy", { input: MEET_CONSOLE_LINE });
     console.log(`
-  Upload the collage as a background in Google Meet once, Anaglypta replaces it from then on:
+  Upload the Anaglypta card as a background in Google Meet once, Anaglypta replaces it from then on.
+  Meet's upload only offers images, one line in Chrome's console lets it take a video (it's in your clipboard now):
+
+    ${MEET_CONSOLE_LINE}
+
     1. In Chrome, open https://meet.google.com and start or preview a meeting
-    2. Click "Apply visual effects" -> Backgrounds -> the + (upload) button
-    3. Pick ${shown} (opening it in Finder for you now)
+    2. Click "Apply visual effects" -> Backgrounds
+    3. Open the console (View -> Developer -> JavaScript Console, or Cmd+Option+J), paste the line and press Enter
+       (Chrome may ask you to type "allow pasting" first)
+    4. Click the + (upload) button and pick ${path.relative(ROOT, card)} in this folder (opening it in Finder for you now,
+       you can drag it from there into Chrome's file picker)
 `);
-    spawnSync("open", ["-R", collage]);
+    spawnSync("open", ["-R", card]);
 
     for (let attempt = 1; attempt <= 3; attempt++) {
         const answer = await input.ask("  Press Enter when the background is uploaded (s to skip): ");
         if (answer === null || /^s/i.test(answer.trim())) {
             return false;
         }
-        const found = pickBlobs(dirs.flatMap(listFiles), since);
-        if (!found) {
-            warn("No new files from Meet yet - make sure the upload finished (it shows up in the list of backgrounds)");
+        // Chrome only creates Meet's folder with the first uploaded background, so it's looked for now
+        const dirs = meetBlobDirs();
+        if (!dirs.length) {
+            warn("Couldn't find Chrome's Google Meet folder yet - it appears with the first background you upload in Meet "
+                + "(any image will do, if the card upload didn't work). Upload one, then press Enter again");
             continue;
         }
-
-        console.log(`\n  Found the uploaded background:\n    image:     ${tilde(found.image)}\n    thumbnail: ${tilde(found.thumbnail)}`);
-        if (found.count > 2) {
-            warn(`${found.count} files changed while you uploaded, picked the largest and smallest - check that these look right`);
+        // the card is the only video of exactly that size, so it's found whenever it was uploaded
+        const uploads = dirs.flatMap(listFiles)
+            .filter((file) => file.size === CARD_BYTES && isMp4(readHead(file.path)))
+            .sort((a, b) => b.mtimeMs - a.mtimeMs);
+        if (!uploads.length) {
+            warn("No uploaded card in Meet yet - make sure the upload finished (it shows up in the list of backgrounds)");
+            continue;
         }
-        const confirm = await input.ask("  Use these? [Y/n] ");
+        const found = uploads[0].path;
+        console.log(`\n  Found the uploaded card (${new Date(uploads[0].mtimeMs).toLocaleString()}):\n    ${tilde(found)}`);
+        const confirm = await input.ask("  Use it? [Y/n] ");
         if (confirm === null || /^n/i.test(confirm.trim())) {
             return false;
         }
-        writeEnvValue("GOOGLE_MEET_BLOB_PATH", found.image);
-        writeEnvValue("GOOGLE_MEET_BLOB_PATH_THUMBNAIL", found.thumbnail);
-        ok("Google Meet paths saved to .env");
-        return run(process.execPath, [path.join(__dirname, "meet.js"), "--project", project.id]).status === 0;
+        writeEnvValue(KEY, found);
+        ok("Google Meet path saved to .env");
+        if (fs.existsSync(path.join(project.dir, "collage.jpg"))) {
+            return run(process.execPath, [path.join(__dirname, "meet.js"), "--project", project.id]).status === 0;
+        }
+        console.log(`  Make a collage with \`npm run collage -- -p ${project.id}\`, then \`npm run meet\` puts it in`);
+        return true;
     }
-    warn("Couldn't find the files - set GOOGLE_MEET_BLOB_PATH and GOOGLE_MEET_BLOB_PATH_THUMBNAIL by hand (see the README)");
+    warn(`Couldn't find the file - set ${KEY} by hand (see docs/reference.md)`);
     return false;
 };
 
@@ -864,4 +869,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { parsePlaylistId, isClientId, isTmdbToken, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor, pickBlobs };
+module.exports = { parsePlaylistId, isClientId, isTmdbToken, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor };

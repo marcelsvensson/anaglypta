@@ -13,7 +13,7 @@ Created by `npm run setup` from [`.example.env`](../.example.env). Never commit 
 | `CLIENT_SECRET` | optional | Only for Spotify apps created before 2026 (instead of `npm run auth`) |
 | `SPOTIFY_MARKET` | optional | Country code such as `SE`, for track availability |
 | `SPOTIFY_AUTH_PORT` | optional | Port for the Spotify login, default `8888` |
-| `GOOGLE_MEET_BLOB_PATH`, `GOOGLE_MEET_BLOB_PATH_THUMBNAIL` | optional | The two Chrome files for your Google Meet background, see [below](#google-meet-by-hand) |
+| `GOOGLE_MEET_BLOB_PATH` | optional | The Chrome file of your Google Meet background, see [below](#google-meet-by-hand) |
 
 ## Settings
 
@@ -63,7 +63,19 @@ TMDb's terms allow caching for at most 6 months. Anaglypta keeps to that by itse
 
 ## Google Meet by hand
 
-`npm run setup:meet` normally finds the files. To set them yourself: upload a background in Meet, then point `GOOGLE_MEET_BLOB_PATH` (the large file) and `GOOGLE_MEET_BLOB_PATH_THUMBNAIL` (the small one) at the two newest files under `~/Library/Application Support/Google/Chrome/Default/IndexedDB/https_meet.google.com_0.indexeddb.blob` (`ls -lt` helps). Leave both empty and the step is skipped. `npm run meet -- --dry-run` shows what would be copied.
+`npm run setup:meet` normally finds the file. How it works, and how to do it yourself:
+
+- The background is a **video**: Meet converts an uploaded image to a small webp, too small to put a collage in. The still collage goes in as a one-frame video (`collage_still.mp4`, made from `collage.jpg`).
+- Chrome reads exactly as many bytes as were uploaded, and only while the file keeps its date. So the upload is the Anaglypta card (`assets/anaglypta.mp4`) padded to 20,000,000 bytes, and `meet` pads every collage and video to exactly that size and keeps the date. A video bigger than 20 MB doesn't fit (fewer `--segments` help).
+- Meet's upload only offers images until you run this in Chrome's console, with Meet's background panel open:
+
+  ```js
+  document.querySelector('input[type="file"]').setAttribute('accept', 'image/jpeg, image/png, video/mp4');
+  ```
+
+- Then upload the padded card (setup writes it to `tmp-upload/anaglypta.mp4`, ignored by git) and point `GOOGLE_MEET_BLOB_PATH` at the 20,000,000-byte file under `~/Library/Application Support/Google/Chrome/Default/IndexedDB/https_meet.google.com_0.indexeddb.blob` (`ls -lt` helps). Leave it empty and the step is skipped. `npm run meet -- --dry-run` shows what would be copied.
+
+The card comes from `node scripts/python.js scripts/brand.py`.
 
 There's one Meet background for all projects: it gets the collage of the project you run the command for.
 
@@ -97,6 +109,8 @@ There's one Meet background for all projects: it gets the collage of the project
 | `... already has 200 albums` / `images` | You've reached `maxItems`. Raise it in `settings.json` or for the project in `projects.json`, or `npm run reset` to start over. |
 | `npm error Unknown cli flag` | Put `--` before the options: `npm run collage -- --cover`. |
 | `Google Meet isn't set up` | `random-meet` needs `npm run setup:meet` first (and again after a Chrome update or a new upload). |
+| `isn't the uploaded Anaglypta video card` | Your Meet background is from an older setup (an image upload): run `npm run setup:meet` again. |
+| `doesn't fit: it's ... MB, more than the 20.0 MB` | The video is too big for the background: fewer `--segments`. |
 
 Not errors: `No new albums in the playlist` (everything is already in), `Skipped ... without a poster on TMDb` (picked up once it has one), `The playlist got shorter - checking it from the start`.
 

@@ -40,7 +40,7 @@ Every **source** can have several **projects**, each with its own folder in `pro
 | `npm run setup` | Gets everything ready; adds, renames and removes projects (safe to re-run) |
 | `npm run full` | Fetches everything new, up to `maxItems` (`-- --limit n` for at most n) |
 | `npm run collage` | Draws a new random collage from what's fetched (no network needed) |
-| `npm run video` | *Experimental:* `collage.mp4`, a 10-minute video of 20 random collages, 30 s each (`-- --segments n --seconds s`). Upload it in Meet as a background by hand |
+| `npm run video` | *Experimental:* `collage.mp4`, a 10-minute video of 20 random collages, 30 s each (`-- --segments n --seconds s`). `npm run random-meet -- --video` makes one and puts it in your Meet background |
 | `npm run daily-new` | Fetches **one** new item, puts it in the middle, sends it to Google Meet: the day-by-day reveal |
 | `npm run random-meet` | A new random collage as your Google Meet background |
 | `npm run meet` | Sends the current collage to Google Meet (`-- --dry-run` to check first) |
@@ -94,13 +94,15 @@ A project can override anything in [`settings.json`](settings.json): `cats` has 
 
 ## Google Meet background
 
-*Experimental, macOS and Chrome.* After your first collage:
+*Experimental, macOS and Chrome.*
 
 ```sh
 npm run setup:meet
 ```
 
-It walks you through uploading the collage as a background in Meet, then finds the two files Chrome keeps for it. From then on, `daily-new`, `random-meet` and `meet` overwrite those files with the new collage: reload Meet to see it. This relies on Chrome internals, so run `setup:meet` again after a Chrome update or a new upload.
+It walks you through uploading the Anaglypta card (a short video) as a background in Meet once, then finds the file Chrome keeps for it. From then on, `daily-new`, `random-meet` and `meet` put your collage into that background, and `random-meet -- --video` (or `meet -- --video`) puts the moving `collage.mp4` in instead. Reload Meet to see it. In Meet's list the background keeps the card's thumbnail.
+
+Meet's upload button only takes images, so setup gives you one line to paste into Chrome's console first, and puts it in your clipboard. This relies on Chrome internals, so run `setup:meet` again after a Chrome update or a new upload.
 
 ## Run it on a schedule
 

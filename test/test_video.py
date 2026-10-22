@@ -74,6 +74,26 @@ class VideoMainTest(unittest.TestCase):
             with av.open(str(folder / "collage.mp4")) as container:
                 self.assertAlmostEqual(container.duration / av.time_base, 2, delta=0.5)
 
+    def test_still_makes_a_one_frame_video_of_the_collage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            project = {"source": "local", "name": "a", "id": "local/a", "folder": "projects/local/a", "dir": folder, "collage": {}}
+            Image.new("RGB", (1412, 980), COLOURS[2]).save(folder / "collage.jpg")
+            with mock.patch.object(video, "load_project", lambda _json: project), mock.patch.object(sys, "argv", ["video", "--still"]):
+                video.main()
+            with av.open(str(folder / "collage_still.mp4")) as container:
+                frames = list(container.decode(video=0))
+            self.assertEqual(len(frames), 1)
+            assertColour(self, frames[0].to_image().getpixel((960, 540)), COLOURS[2])
+
+    def test_still_needs_a_collage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = {"id": "local/a", "folder": "projects/local/a", "dir": Path(tmp), "collage": {}}
+            with mock.patch.object(video, "load_project", lambda _json: project), mock.patch.object(sys, "argv", ["video", "--still"]), \
+                    self.assertRaises(SystemExit) as exited:
+                video.main()
+            self.assertIn("npm run collage", str(exited.exception))
+
     def test_segments_must_be_positive(self):
         with mock.patch.object(sys, "argv", ["video", "--segments", "0"]), self.assertRaises(SystemExit):
             video.main()
