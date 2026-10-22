@@ -54,58 +54,76 @@ def draw(grid, tiles, centre=None):
     return canvas
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    add_project_args(parser)
-    parser.add_argument("-r", "--randomize", action="store_true", help="pick and place images randomly (from all of them)")
+def pick(items, cells, centre="cover", randomize=True):
+    """Which item goes where: {"centre": item or None, "tiles": [(cell, item)]}. centre: "cover" (a random item), "latest"
+    (the newest) or "fill" (none, the centre cells are in cells). An item in the middle doesn't get a grid cell as well.
+    randomize: a random pick from all items, else the newest ones (oldest in the first cell)."""
+    centre_item = None if centre == "fill" else items[-1] if centre == "latest" else random.choice(items)
+    pool = [item for item in items if item is not centre_item]
+    chosen = random.sample(pool, min(len(pool), len(cells))) if randomize else pool[-len(cells):]
+    return {"centre": centre_item, "tiles": list(zip(cells, chosen))}
+
+
+def render(project, grid, picked):
+    """The collage of a pick: (image, how many tiles were drawn). Images that can't be made are left out (warned)."""
+    tiles = [(cell, path) for cell, path in ((cell, ensure_image(project, item)) for cell, item in picked["tiles"]) if path]
+    centre = ensure_image(project, picked["centre"]) if picked["centre"] else None
+    if picked["centre"] and not centre:
+        warn("No image for the centrepiece - leaving the centre empty")
+    return draw(grid, tiles, centre), len(tiles)
+
+
+def load_grid(project, layout=None):
+    """(items, grid) of the project, exits with the reason when there's nothing to draw. layout: --layout."""
+    try:
+        aspect = parse_aspect(project.get("aspect"))
+        items = read_items(project)
+        if not items:
+            sys.exit(f"Nothing fetched for {project['id']} yet - run `npm run full -- -p {project['id']}` first")
+        return items, resolve(project["collage"], aspect, len(items), layout)
+    except ValueError as error:
+        sys.exit(f"❌ {project['id']}: {error}")
+
+
+def centre_mode(args):
+    return "fill" if args.fill else "latest" if args.latest else "cover"
+
+
+def add_centre_args(parser):
     centrepiece_choice = parser.add_mutually_exclusive_group()
     centrepiece_choice.add_argument("-c", "--cover", action="store_true", help="a random image as centrepiece (the default)")
     centrepiece_choice.add_argument("-f", "--fill", action="store_true", help="no centrepiece: fill the centre with images like the rest")
     centrepiece_choice.add_argument("-l", "--latest", action="store_true", help="the newest image as centrepiece (the one daily-new just fetched)")
     parser.add_argument("--layout", help="draw with this layout instead of the project's, like 11x5/3 (columns x rows / centrepiece) or auto")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    add_project_args(parser)
+    parser.add_argument("-r", "--randomize", action="store_true", help="pick and place images randomly (from all of them)")
+    add_centre_args(parser)
     parser.add_argument("--grid", action="store_true", help="only print the layouts that fit the project's aspect and items")
     args = parser.parse_args()
 
     project = load_project(args.project_json)
-    try:
-        aspect = parse_aspect(project.get("aspect"))
-    except ValueError as error:
-        sys.exit(f"❌ {project['id']}: {error}")
-
-    items = read_items(project)
     collage = project["collage"]
     if args.grid:
-        print(grid_table(aspect, len(items), collage.get("canvasWidth", 1412), collage.get("gap", 8)))
+        try:
+            aspect = parse_aspect(project.get("aspect"))
+        except ValueError as error:
+            sys.exit(f"❌ {project['id']}: {error}")
+        print(grid_table(aspect, len(read_items(project)), collage.get("canvasWidth", 1412), collage.get("gap", 8)))
         return
-    if not items:
-        sys.exit(f"Nothing fetched for {project['id']} yet - run `npm run full -- -p {project['id']}` first")
 
-    try:
-        grid = resolve(collage, aspect, len(items), args.layout)
-    except ValueError as error:
-        sys.exit(f"❌ {error}")
+    items, grid = load_grid(project, args.layout)
     cells = grid_cells(grid, collage.get("skip", []), args.fill)
-
-    # an item in the middle doesn't get a grid cell as well
-    centre_item = None if args.fill else items[-1] if args.latest else random.choice(items)
-    pool = [item for item in items if item is not centre_item]
-
-    if args.randomize:
-        chosen = random.sample(pool, min(len(pool), len(cells)))
-    else:
-        chosen = pool[-len(cells):]
-
-    tiles = [(cell, path) for cell, path in ((cell, ensure_image(project, item)) for cell, item in zip(cells, chosen)) if path]
-    centre = ensure_image(project, centre_item) if centre_item else None
-    if centre_item and not centre:
-        warn("No image for the centrepiece - leaving the centre empty")
-    canvas = draw(grid, tiles, centre)
-    drawn = len(tiles)
+    picked = pick(items, cells, centre_mode(args), args.randomize)
+    canvas, drawn = render(project, grid, picked)
 
     output = project["dir"] / "collage.jpg"
     canvas.save(output, quality=95)
     centre = "" if args.fill else " + centrepiece"
-    print(f"Saved {project['folder']}/collage.jpg ({drawn}/{len(chosen)} images{centre}, {len(cells)} cells, layout {grid['layout']})")
+    print(f"Saved {project['folder']}/collage.jpg ({drawn}/{len(picked['tiles'])} images{centre}, {len(cells)} cells, layout {grid['layout']})")
 
     thumbnail = project["dir"] / "collage_thumbnail.jpg"
     ImageOps.fit(canvas, THUMBNAIL_SIZE, Image.Resampling.LANCZOS).save(thumbnail, quality=95, dpi=(72, 72))

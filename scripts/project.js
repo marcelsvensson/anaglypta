@@ -11,7 +11,7 @@ const ROOT = path.join(__dirname, "..");
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
 // -p mix: a random project (allowMix isn't false) instead of a named one, a reserved name
 const MIX = "mix";
-const MIX_COMMANDS = "collage, random-meet, daily-new and meet";
+const MIX_COMMANDS = "collage, video, random-meet, daily-new and meet";
 
 const expandHome = (file) => (file === "~" || file.startsWith("~/") ? path.join(os.homedir(), file.slice(1)) : file);
 

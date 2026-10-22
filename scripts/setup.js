@@ -20,7 +20,7 @@ const ENV_PATH = path.join(ROOT, ".env");
 const EXAMPLE_ENV_PATH = path.join(ROOT, ".example.env");
 const TOKEN_PATH = path.join(ROOT, ".spotify-token.json");
 const MIN_NODE = 20;
-const MIN_PYTHON = [3, 9];
+const MIN_PYTHON = [3, 12];
 const REDIRECT_URI = `http://127.0.0.1:${process.env.SPOTIFY_AUTH_PORT || 8888}/callback`;
 
 const ok = (message) => console.log(`✓ ${message}`);
@@ -216,7 +216,7 @@ const findSystemPython = () => {
 
 const setupPython = () => {
     if (fs.existsSync(VENV_PYTHON) && hasPackages(VENV_PYTHON)) {
-        ok("Python environment (.venv) with Pillow and HEIC support");
+        ok("Python environment (.venv) with Pillow, HEIC and video support");
         return true;
     }
 
@@ -233,12 +233,13 @@ const setupPython = () => {
         }
     }
 
-    step("Installing Python packages (Pillow, pillow-heif)");
-    if (run(VENV_PYTHON, ["-m", "pip", "install", "--quiet", "-r", "requirements.txt"]).status !== 0) {
+    step("Installing Python packages (Pillow, pillow-heif, PyAV)");
+    // wheels only: pip never builds a package from source (and runs its build script)
+    if (run(VENV_PYTHON, ["-m", "pip", "install", "--quiet", "--only-binary", ":all:", "-r", "requirements.txt"]).status !== 0) {
         warn("Could not install the Python packages - run `npm run setup:python` again");
         return false;
     }
-    ok("Python environment (.venv) with Pillow and HEIC support");
+    ok("Python environment (.venv) with Pillow, HEIC and video support");
     return true;
 };
 

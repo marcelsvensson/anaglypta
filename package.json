@@ -10,6 +10,7 @@
     "auth": "node ./scripts/auth.js",
     "full": "node ./scripts/fetch.js",
     "collage": "node ./scripts/collage.js --randomize",
+    "video": "node ./scripts/video.js",
     "daily-new": "node ./scripts/daily-new.js",
     "meet": "node ./scripts/meet.js",
     "random-meet": "node ./scripts/meet.js --collage",

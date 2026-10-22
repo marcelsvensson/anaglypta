@@ -10,8 +10,8 @@ const VENV_PYTHON = process.platform === "win32"
     : path.join(ROOT, ".venv", "bin", "python");
 
 const hasPillow = (python) => spawnSync(python, ["-c", "import PIL"], { stdio: "ignore" }).status === 0;
-// everything in requirements.txt (pillow_heif reads HEIC photos), setup.js reinstalls when something is missing
-const hasPackages = (python) => spawnSync(python, ["-c", "import PIL, pillow_heif"], { stdio: "ignore" }).status === 0;
+// everything in requirements.txt (pillow_heif reads HEIC photos, av writes the video), setup.js reinstalls when something is missing
+const hasPackages = (python) => spawnSync(python, ["-c", "import PIL, pillow_heif, av"], { stdio: "ignore" }).status === 0;
 
 const findPython = () => {
     if (fs.existsSync(VENV_PYTHON)) {

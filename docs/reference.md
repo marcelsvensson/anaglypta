@@ -47,7 +47,9 @@ When a project has more images than the layout has cells, `npm run collage` pick
 2. It then makes a copy of every new image in `images/`, cropped to the project's `aspect`. Spotify covers and TMDb posters are downloaded for this, and photos are turned upright. A failed download is tried again on the next run.
 3. `npm run collage` draws `collage.jpg` (and the 97×68 `collage_thumbnail.jpg`) from `images/` with Python/Pillow. It works offline, which is good for a `random-meet` from cron on a laptop.
 
-Node reads the settings, picks the project and hands it to the Python scripts, which only do the image work (Pillow, which also reads iPhone HEIC photos).
+`npm run video` draws a series of random collages the same way and writes them as `collage.mp4`: padded to 1920×1080 on black and encoded as H.264 with [PyAV](https://pypi.org/project/av/), at 2 frames per second (an unchanged frame costs next to nothing, so 10 minutes stay a few MB).
+
+Node reads the settings, picks the project and hands it to the Python scripts, which only do the image work (Pillow, which also reads iPhone HEIC photos, and PyAV for the video).
 
 Everything generated (`projects/`) and `projects.json` are ignored by git. `npm run clean` removes what can be rebuilt (every project's `images/`), and `npm run reset` takes one project back to a fresh start.
 
@@ -88,7 +90,8 @@ There's one Meet background for all projects: it gets the collage of the project
 | `Nothing fetched for ... yet` | Run `npm run full` first (with the same `-p`). |
 | `Unknown project` | Check the name with `npm run setup` (it lists your projects), or add the project there. |
 | `... is a project in spotify and local` | Two sources have a project with that name: use `-p source/name`. |
-| `-p mix only works with ...` | `mix` picks a project for `collage`, `random-meet`, `daily-new` and `meet` only. Name the project for the others. |
+| `PyAV is missing` | `npm run video` needs it: run `npm run setup:python` (Python 3.12+). |
+| `-p mix only works with ...` | `mix` picks a project for `collage`, `video`, `random-meet`, `daily-new` and `meet` only. Name the project for the others. |
 | `No projects in the mix` | Every project has `"allowMix": false` or nothing fetched yet. |
 | `Skipped photo.heic` | HEIC needs pillow-heif: run `npm run setup:python`. Other skipped files are broken or not images. |
 | `... already has 200 albums` / `images` | You've reached `maxItems`. Raise it in `settings.json` or for the project in `projects.json`, or `npm run reset` to start over. |

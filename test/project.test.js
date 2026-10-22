@@ -83,7 +83,7 @@ test("getProject only takes -p mix when asked to", (t) => {
         fs.writeFileSync(path.join(root, "settings.json"), JSON.stringify(settings));
         fs.writeFileSync(path.join(root, "projects.json"), JSON.stringify(projects));
         writeData(resolveProject(settings, projects, { project: "dogs" }, root), { items: [{ id: "a" }] });
-        assert.throws(() => getProject({ project: "mix" }, root), /-p mix only works with collage, random-meet, daily-new and meet/);
+        assert.throws(() => getProject({ project: "mix" }, root), /-p mix only works with collage, video, random-meet, daily-new and meet/);
         assert.equal(getProject({ project: "mix" }, root, { mix: true }).id, "local/dogs");
         assert.equal(getProject({ project: "cats", source: "local" }, root, { mix: true }).id, "local/cats");
     } finally {

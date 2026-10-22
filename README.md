@@ -10,7 +10,7 @@ Turn a Spotify playlist, a TMDb list of movies and series or a folder of photos 
 
 ## Quick start
 
-You need [Node.js](https://nodejs.org) 20+ and [Python](https://www.python.org) 3.9+. For Spotify, first [create a Spotify app](#create-a-spotify-app). For TMDb, first [get a TMDb token](#get-a-tmdb-token). A folder of photos needs nothing else.
+You need [Node.js](https://nodejs.org) 20+ and [Python](https://www.python.org) 3.12+. For Spotify, first [create a Spotify app](#create-a-spotify-app). For TMDb, first [get a TMDb token](#get-a-tmdb-token). A folder of photos needs nothing else.
 
 ```sh
 git clone https://github.com/marcelsvensson/anaglypta.git
@@ -40,6 +40,7 @@ Every **source** can have several **projects**, each with its own folder in `pro
 | `npm run setup` | Gets everything ready; adds, renames and removes projects (safe to re-run) |
 | `npm run full` | Fetches everything new, up to `maxItems` (`-- --limit n` for at most n) |
 | `npm run collage` | Draws a new random collage from what's fetched (no network needed) |
+| `npm run video` | *Experimental:* `collage.mp4`, a 10-minute video of 20 random collages, 30 s each (`-- --segments n --seconds s`). Upload it in Meet as a background by hand |
 | `npm run daily-new` | Fetches **one** new item, puts it in the middle, sends it to Google Meet: the day-by-day reveal |
 | `npm run random-meet` | A new random collage as your Google Meet background |
 | `npm run meet` | Sends the current collage to Google Meet (`-- --dry-run` to check first) |

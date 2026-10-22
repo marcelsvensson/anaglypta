@@ -1,2 +1,5 @@
-Pillow>=11
-pillow-heif>=1.0
+# pinned exactly, like package-lock.json: a version is bumped on purpose (prefer releases a couple of weeks old), tested
+# and committed, so a new (possibly bad) release is never picked up by itself. setup installs wheels only.
+Pillow==12.3.0
+pillow-heif==1.8.1
+av==19.0.1
