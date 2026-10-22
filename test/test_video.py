@@ -10,7 +10,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
 import av  # noqa: E402
-from PIL import Image  # noqa: E402
+from PIL import Image, ImageChops  # noqa: E402
 
 import collage  # noqa: E402
 import common  # noqa: E402
@@ -54,6 +54,36 @@ class WriteVideoTest(unittest.TestCase):
 
 
 class VideoMainTest(unittest.TestCase):
+    def project_with_items(self, folder, count=12):
+        project = {"source": "local", "name": "a", "id": "local/a", "folder": "projects/local/a", "dir": folder, "imageSize": 8,
+                   "collage": {"layout": "4x3/1", "canvasWidth": 50, "gap": 2}}
+        (folder / "images").mkdir(parents=True)
+        items = []
+        for i in range(count):
+            items.append({"id": f"i{i}", "source": "https://example.invalid/never-downloaded"})
+            Image.new("RGB", (8, 8), COLOURS[i % 3]).save(folder / "images" / f"i{i}.jpg")
+        common.write_data(project, {"items": items})
+        return project
+
+    def test_main_writes_a_living_collage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self.project_with_items(Path(tmp) / "a", count=20)
+            argv = ["video", "--minutes", "0.1", "--every", "2", "--fade", "0.5"]  # 3 changes in 6 s
+            with mock.patch.object(video, "load_project", lambda _json: project), mock.patch.object(sys, "argv", argv), \
+                    redirect_stdout(io.StringIO()) as out:
+                video.main()
+            self.assertIn("(living, 0:06, a change every 2 s, layout 4x3/1", out.getvalue())
+            with av.open(str(project["dir"] / "collage.mp4")) as container:
+                self.assertAlmostEqual(container.duration / av.time_base, 6, delta=0.3)
+                frames = [frame.to_image() for frame in container.decode(video=0)]
+            self.assertEqual(len(frames), 60, "10 fps")
+            # a hold is still: the frames of the first 1.5 s are the same (give or take compression), then it fades
+            def difference(a, b):
+                return max(channel[1] for channel in ImageChops.difference(a, b).getextrema())
+
+            self.assertLess(difference(frames[0], frames[14]), 30)
+            self.assertGreater(difference(frames[0], frames[59]), 100)
+
     def test_main_writes_the_project_video(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp) / "projects" / "local" / "a"
@@ -66,7 +96,7 @@ class VideoMainTest(unittest.TestCase):
                 Image.new("RGB", (8, 8), COLOURS[i % 3]).save(folder / "images" / f"i{i}.jpg")
             common.write_data(project, {"items": items})
 
-            argv = ["video", "--segments", "2", "--seconds", "1"]
+            argv = ["video", "--slideshow", "--segments", "2", "--seconds", "1"]
             with mock.patch.object(video, "load_project", lambda _json: project), mock.patch.object(sys, "argv", argv), \
                     redirect_stdout(io.StringIO()) as out:
                 video.main()

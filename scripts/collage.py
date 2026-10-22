@@ -36,21 +36,40 @@ def grid_cells(grid, skip=(), fill=False):
     return free_cells(grid["col"], grid["row"], center, skip)
 
 
+def cell_size(grid):
+    return grid["width"] * grid["scale"], grid["height"] * grid["scale"]
+
+
+def tile_xy(grid, cell):
+    """Top left pixel of a grid cell."""
+    return cell_xy(*cell, *cell_size(grid), grid["gap"])
+
+
+def tile_image(grid, path):
+    """The image at path as a grid tile: cropped to fit, never stretched."""
+    return load_tile(path, grid["width"], grid["height"], grid["scale"])
+
+
+def centre_xy(grid):
+    return tile_xy(grid, (grid["center"]["col"], grid["center"]["row"]))
+
+
+def centre_image(grid, path):
+    """The image at path as the centrepiece: size x size cells and the gaps between them, cropped to fit."""
+    (cell_width, cell_height), size, gap = cell_size(grid), grid["center"]["size"], grid["gap"]
+    with Image.open(path) as image:
+        return ImageOps.fit(image.convert("RGB"), (size * cell_width + (size - 1) * gap, size * cell_height + (size - 1) * gap),
+                            Image.Resampling.LANCZOS)
+
+
 def draw(grid, tiles, centre=None):
     """The collage for a grid from layout.resolve: tiles = [((col, row), image path)], centre = the centrepiece's image
     path (None leaves the middle empty). Everything is cropped to fit, never stretched."""
-    width, height, scale, gap = (grid[key] for key in ("width", "height", "scale", "gap"))
-    cell_width, cell_height = width * scale, height * scale
-    canvas = Image.new("RGB", canvas_size(grid["col"], grid["row"], cell_width, cell_height, gap), "black")
-    for (c, r), path in tiles:
-        canvas.paste(load_tile(path, width, height, scale), cell_xy(c, r, cell_width, cell_height, gap))
+    canvas = Image.new("RGB", canvas_size(grid["col"], grid["row"], *cell_size(grid), grid["gap"]), "black")
+    for cell, path in tiles:
+        canvas.paste(tile_image(grid, path), tile_xy(grid, cell))
     if centre:
-        center = grid["center"]
-        size = center["size"]
-        box = (size * cell_width + (size - 1) * gap, size * cell_height + (size - 1) * gap)
-        with Image.open(centre) as image:
-            canvas.paste(ImageOps.fit(image.convert("RGB"), box, Image.Resampling.LANCZOS),
-                         cell_xy(center["col"], center["row"], cell_width, cell_height, gap))
+        canvas.paste(centre_image(grid, centre), centre_xy(grid))
     return canvas
 
 

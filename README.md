@@ -40,7 +40,7 @@ Every **source** can have several **projects**, each with its own folder in `pro
 | `npm run setup` | Gets everything ready; adds, renames and removes projects (safe to re-run) |
 | `npm run full` | Fetches everything new, up to `maxItems` (`-- --limit n` for at most n) |
 | `npm run collage` | Draws a new random collage from what's fetched (no network needed) |
-| `npm run video` | *Experimental:* `collage.mp4`, a 10-minute video of 20 random collages, 30 s each (`-- --segments n --seconds s`). `npm run random-meet -- --video` makes one and puts it in your Meet background |
+| `npm run video` | *Experimental:* `collage.mp4`, a living collage: 10 minutes where one tile crossfades to another image every 10 s and the centrepiece every minute (`-- --minutes 10 --every 10 --fade 1`, or `--slideshow` for whole collages one after another). `npm run random-meet -- --video` makes one and puts it in your Meet background |
 | `npm run daily-new` | Fetches **one** new item, puts it in the middle, sends it to Google Meet: the day-by-day reveal |
 | `npm run random-meet` | A new random collage as your Google Meet background |
 | `npm run meet` | Sends the current collage to Google Meet (`-- --dry-run` to check first) |
