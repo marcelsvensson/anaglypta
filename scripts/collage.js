@@ -1,7 +1,9 @@
 // npm run collage [-- -p <project> | -p mix] [--cover | --latest | --fill] [--grid] [--layout X]: draws the project's
 // collage.jpg with scripts/collage.py (the options go to it). Removes what's past the source's cache limit first (TMDb).
 // meet.js (random-meet) and daily-new use drawCollage too.
-const { ROOT, getProject, parseProjectArgs, expireCache, reportExpired } = require("./project");
+const { ROOT } = require("../lib/utils/files");
+const { getProject, parseProjectArgs } = require("../lib/utils/cli");
+const { expireCache, reportExpired } = require("../lib/utils/cache-limit");
 const { runPython } = require("./python");
 
 // returns collage.py's exit status

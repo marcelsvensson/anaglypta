@@ -4,9 +4,9 @@ const assert = require("node:assert/strict");
 const os = require("node:os");
 const path = require("node:path");
 
-const { resolveProject } = require("../scripts/project");
-const { parseEnv, setEnvValue } = require("../scripts/setup/ui");
-const { setDefault, addProject, removeProject, renameProject, cronLinesFor } = require("../scripts/setup/projects");
+const { resolveProject } = require("../lib/utils/projects");
+const { parseEnv, setEnvValue } = require("../lib/setup/ui");
+const { setDefault, addProject, removeProject, renameProject, cronLinesFor } = require("../lib/setup/projects");
 const { parsePlaylistId } = require("../lib/sources/spotify");
 const { isClientId } = require("../lib/sources/spotify/setup");
 const { isTmdbToken } = require("../lib/sources/tmdb/setup");

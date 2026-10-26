@@ -81,14 +81,14 @@ def write_json(path, data):
         f.write("\n")
 
 
-# --- projects: resolved by Node (scripts/project.js), passed along by scripts/python.js ---
+# --- projects: resolved by Node (lib/utils/projects.js), passed along by scripts/python.js ---
 
 def add_project_args(parser):
     parser.add_argument("--project-json", help="the project, as Node resolved it (npm passes it along)")
 
 
 def load_project(project_json):
-    """The project Node resolved (settings.json + projects.json + -s/-p, see scripts/project.js), with dir as a Path.
+    """The project Node resolved (settings.json + projects.json + -s/-p, see lib/utils/projects.js), with dir as a Path.
     Exits with a hint when the script was run by hand instead of through npm."""
     if not project_json:
         sys.exit("❌ Run this through npm, like `npm run collage` - it passes the project along (--project-json)")

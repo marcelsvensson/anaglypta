@@ -4,7 +4,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const ROOT = path.join(__dirname, "..");
+const { ROOT } = require("../lib/utils/files");
+
 const VENV_PYTHON = process.platform === "win32"
     ? path.join(ROOT, ".venv", "Scripts", "python.exe")
     : path.join(ROOT, ".venv", "bin", "python");

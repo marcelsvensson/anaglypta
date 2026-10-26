@@ -12,7 +12,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { ROOT, MIX, expandHome, getProject, parseProjectArgs } = require("./project");
+const { ROOT, expandHome } = require("../lib/utils/files");
+const { MIX } = require("../lib/utils/projects");
+const { getProject, parseProjectArgs } = require("../lib/utils/cli");
 const { drawCollage } = require("./collage");
 const { drawVideo } = require("./video");
 const { runPython } = require("./python");
@@ -150,4 +152,4 @@ if (require.main === module) {
     }
 }
 
-module.exports = { KEY, CARD_BYTES, MODES, padTo, copyToBlob, planCopy, isMp4, readHead, expandHome };
+module.exports = { KEY, CARD_BYTES, MODES, padTo, copyToBlob, planCopy, isMp4, readHead };

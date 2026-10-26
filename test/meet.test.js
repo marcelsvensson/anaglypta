@@ -4,7 +4,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { KEY, MODES, padTo, copyToBlob, planCopy, isMp4, expandHome } = require("../scripts/meet");
+const { KEY, MODES, padTo, copyToBlob, planCopy, isMp4 } = require("../scripts/meet");
+const { expandHome } = require("../lib/utils/files");
 
 // a fake file system: the card's blob Chrome made (an mp4), an image blob from an older setup, and a folder
 const mp4 = Buffer.from("\0\0\0\x20ftypisom", "latin1");

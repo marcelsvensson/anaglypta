@@ -6,7 +6,7 @@ const path = require("node:path");
 
 const { normalizeOwnedGames, normalizeStoreItems, getCapsules, request } = require("../lib/sources/steam/api");
 const { syncGames, fetchSteam } = require("../lib/sources/steam/fetch");
-const { readData, writeData } = require("../scripts/project");
+const { readData, writeData } = require("../lib/utils/items");
 const { parseSteamProfile } = require("../lib/sources/steam");
 const { notImplemented } = require("../scripts/daily-new");
 const ownedFixture = require("./fixtures/steam-owned-games.json");

@@ -3,7 +3,9 @@
 // where it started, for a seamless loop), or --slideshow [--segments 20] [--seconds 30]. scripts/video.py does it, the options
 // go to it. `npm run random-meet -- --video` makes one and puts it in the Meet background. Removes what's past the source's
 // cache limit first (TMDb).
-const { ROOT, getProject, parseProjectArgs, expireCache, reportExpired } = require("./project");
+const { ROOT } = require("../lib/utils/files");
+const { getProject, parseProjectArgs } = require("../lib/utils/cli");
+const { expireCache, reportExpired } = require("../lib/utils/cache-limit");
 const { runPython } = require("./python");
 
 // returns video.py's exit status

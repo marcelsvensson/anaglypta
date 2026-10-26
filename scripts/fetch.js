@@ -2,7 +2,8 @@
 // projects/<source>/<name>/items.json, then makes the square copies that are missing (cache.py), so the collage works
 // offline. --limit n: the most new items one run adds (daily-new uses 1), no --limit = all of them, up to maxItems.
 // The project's source fetches (its adapter in lib/sources/<source>/).
-const { getProject, parseProjectArgs, expireCache } = require("./project");
+const { getProject, parseProjectArgs } = require("../lib/utils/cli");
+const { expireCache } = require("../lib/utils/cache-limit");
 const { runPython } = require("./python");
 const { getSource } = require("../lib/sources");
 

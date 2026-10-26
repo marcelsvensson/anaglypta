@@ -6,7 +6,7 @@ const path = require("node:path");
 
 const { normalizeListPage, getList, posterUrl } = require("../lib/sources/tmdb/api");
 const { syncItems, fetchTmdb } = require("../lib/sources/tmdb/fetch");
-const { readData, writeData } = require("../scripts/project");
+const { readData, writeData } = require("../lib/utils/items");
 const { parseListId } = require("../lib/sources/tmdb");
 const fixture = require("./fixtures/tmdb-list.json");
 

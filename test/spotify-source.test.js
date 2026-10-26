@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { toItem, knownFrom, filterNewItems, collectNewAlbums, freeSlots, fetchSpotify } = require("../lib/sources/spotify/fetch");
 const { parseLimit } = require("../scripts/fetch");
-const { readData, writeData } = require("../scripts/project");
+const { readData, writeData } = require("../lib/utils/items");
 const { normalizePage } = require("../lib/sources/spotify/api");
 const fixture = require("./fixtures/playlist-items.json");
 

@@ -5,7 +5,8 @@
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-const { ROOT, getProject, parseProjectArgs, projectArgs } = require("./project");
+const { ROOT } = require("../lib/utils/files");
+const { getProject, parseProjectArgs, projectArgs } = require("../lib/utils/cli");
 const { SOURCES, sourcesWithout } = require("../lib/sources");
 
 // sources without a day-by-day reveal (their adapter says dailyNew: false, like Steam: no "newest game")

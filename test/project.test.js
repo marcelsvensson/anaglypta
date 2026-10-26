@@ -4,7 +4,12 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { resolveProject, getProject, mixCandidates, pickMix, pickMixProject, parseProjectArgs, projectArgs, toKebab, deepMerge, listProjects, readData, writeData, cacheNote, expireCache, reportExpired } = require("../scripts/project");
+const { resolveProject, deepMerge, listProjects } = require("../lib/utils/projects");
+const { getProject, parseProjectArgs, projectArgs } = require("../lib/utils/cli");
+const { mixCandidates, pickMix, pickMixProject } = require("../lib/utils/mix");
+const { toKebab } = require("../lib/setup/ui");
+const { readData, writeData } = require("../lib/utils/items");
+const { cacheNote, expireCache, reportExpired } = require("../lib/utils/cache-limit");
 const { settings, projects, cases, mixCases } = require("./fixtures/project-cases.json");
 
 for (const { flags, expected, error } of cases) {

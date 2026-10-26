@@ -3,6 +3,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");
 
 const { SOURCES, getSource, sourcesWithout } = require("../lib/sources");
@@ -42,8 +43,7 @@ test("daily-new skips exactly the sources without it", () => {
 });
 
 test("resolve adds the source's own fields", () => {
-    const expandHome = (file) => file.replace("~", "/home/me");
-    assert.deepEqual(SOURCES.local.resolve({ path: "~/cats" }, { expandHome }), { path: "/home/me/cats" });
-    assert.deepEqual(SOURCES.local.resolve({}, { expandHome }), {});
-    assert.deepEqual(SOURCES.tmdb.resolve({ list: "42" }, { expandHome }), { listId: "42" });
+    assert.deepEqual(SOURCES.local.resolve({ path: "~/cats" }), { path: path.join(os.homedir(), "cats") });
+    assert.deepEqual(SOURCES.local.resolve({}), {});
+    assert.deepEqual(SOURCES.tmdb.resolve({ list: "42" }), { listId: "42" });
 });

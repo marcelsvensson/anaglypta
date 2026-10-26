@@ -7,7 +7,8 @@ const fs = require("node:fs");
 const path = require("node:path");
 const readline = require("node:readline/promises");
 
-const { ROOT, getProject, parseProjectArgs } = require("./project");
+const { ROOT } = require("../lib/utils/files");
+const { getProject, parseProjectArgs } = require("../lib/utils/cli");
 
 const filesIn = (dir, matches = () => true) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter(matches).map((file) => path.join(dir, file)) : []);
 const notGitkeep = (file) => file !== ".gitkeep";
