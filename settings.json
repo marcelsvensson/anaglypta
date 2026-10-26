@@ -10,6 +10,7 @@
   "sources": {
     "spotify": {},
     "local": {},
-    "tmdb": { "maxCacheDays": 180, "aspect": "2:3", "imageSize": 960, "collage": { "layout": "auto" } }
+    "tmdb": { "maxCacheDays": 180, "aspect": "2:3", "imageSize": 960, "collage": { "layout": "auto" } },
+    "steam": { "aspect": "2:3", "imageSize": 900, "collage": { "layout": "auto" } }
   }
 }

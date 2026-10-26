@@ -11,7 +11,7 @@ const { spawnSync } = require("node:child_process");
 
 const { VENV_PYTHON, hasPackages } = require("./python");
 const {
-    MIX, expandHome, parsePlaylistId, parseListId, toKebab, cacheNote, readSettings, readProjects, writeProjects, listProjects, getProject, resolveProject,
+    MIX, expandHome, parsePlaylistId, parseListId, parseSteamProfile, toKebab, cacheNote, readSettings, readProjects, writeProjects, listProjects, getProject, resolveProject,
     parseProjectArgs,
 } = require("./project");
 
@@ -33,6 +33,9 @@ const isClientId = (input) => /^[0-9a-f]{32}$/i.test(String(input ?? "").trim())
 
 // TMDb's API Read Access Token is a JWT (eyJ....), the 32-character API key is a different thing
 const isTmdbToken = (input) => /^eyJ[\w-]+\.[\w-]+\.[\w-]+$/.test(String(input ?? "").trim());
+
+// a Steam Web API key: 32 hex characters
+const isSteamKey = (input) => /^[0-9a-f]{32}$/i.test(String(input ?? "").trim());
 
 // KEY=value lines, comments and empty lines ignored
 const parseEnv = (text) => {
@@ -382,6 +385,7 @@ const SOURCES = {
     spotify: "the album covers of a Spotify playlist",
     local: "the images in a folder on this computer",
     tmdb: "the posters of a TMDb list (movies and series)",
+    steam: "the library art of a Steam profile's games",
 };
 
 const isYes = (answer) => answer !== null && /^y/i.test(answer.trim());
@@ -513,6 +517,74 @@ const setupTmdb = async (input, todo) => {
         ok("TMDB_TOKEN saved to .env");
     } else {
         todo.push("Add TMDB_TOKEN to .env (the API Read Access Token from https://www.themoviedb.org/settings/api)");
+    }
+};
+
+// a Steam profile's name and game count for the project name, when STEAM_API_KEY is set (setup doesn't load .env by itself).
+// games = null when the library can't be read (Game details not public)
+const lookupSteam = async (profile) => {
+    const key = readEnv().STEAM_API_KEY;
+    if (!key || !profile) {
+        return null;
+    }
+    process.env.STEAM_API_KEY ||= key;
+    const steam = require("../api/steam");
+    try {
+        const steamId = profile.steamId ?? await steam.resolveVanity(profile.vanity);
+        if (!steamId) {
+            warn(`No Steam profile called "${profile.vanity}"`);
+            return null;
+        }
+        const name = await steam.getPlayerName(steamId);
+        const games = await steam.getOwnedGames(steamId).then((list) => list.length, () => null);
+        return { name, games };
+    } catch (error) {
+        warn(`Couldn't look up the profile (${error.message})`);
+        return null;
+    }
+};
+
+const askSteamProject = async (input, projects) => {
+    console.log("\n  The profile: on steamcommunity.com, open the profile and copy its link (…/id/<name> or …/profiles/<number>).");
+    console.log("  Its Game details have to be Public (Edit Profile -> Privacy Settings) - a friend's public profile works too.\n");
+    const profile = await askUntil(input, "  Profile link (empty to skip): ", (answer) => parseSteamProfile(answer) && answer.trim(),
+        "That doesn't look like a profile link (https://steamcommunity.com/id/... or /profiles/...)");
+    if (!profile) {
+        return null;
+    }
+    const found = await lookupSteam(parseSteamProfile(profile));
+    if (found?.games === null) {
+        warn("Couldn't read the library - set the profile's Game details to Public before `npm run full`");
+    } else if (found) {
+        ok(`Profile: ${found.name} (${found.games} games)`);
+    }
+    const name = await askProjectName(input, "steam", projects, toKebab(found?.name));
+    return name && { name, entry: { profile } };
+};
+
+const printSteamGuide = () => {
+    console.log(`
+  Get a Steam Web API key (once, free):
+    1. Log in at https://steamcommunity.com/dev/apikey - the account needs to be non-limited (spent $5 on Steam)
+    2. Domain name: anything, http://127.0.0.1 is fine. Agree to the terms and register
+    3. Copy the key (32 characters) and keep it to yourself. It reads any profile whose Game details are public
+`);
+};
+
+// STEAM_API_KEY, only asked when there's a steam project
+const setupSteam = async (input, todo) => {
+    if (readEnv().STEAM_API_KEY) {
+        ok("STEAM_API_KEY is set");
+        return;
+    }
+    printSteamGuide();
+    const key = await askUntil(input, "  Steam Web API key (empty to skip): ", (answer) => isSteamKey(answer) && answer.trim(),
+        "That doesn't look like a Steam Web API key (32 letters and digits)");
+    if (key) {
+        writeEnvValue("STEAM_API_KEY", key);
+        ok("STEAM_API_KEY saved to .env");
+    } else {
+        todo.push("Add STEAM_API_KEY to .env (a Steam Web API key from https://steamcommunity.com/dev/apikey)");
     }
 };
 
@@ -656,8 +728,8 @@ const main = async () => {
     const ids = () => listProjects(settings, readProjects()).map(({ source, name }) => `${source}/${name}`);
     let added = null;
 
-    // a source's credentials, asked once per run: the Spotify app + login, the TMDb token
-    const credentials = { spotify: () => setupSpotify(input, todo), tmdb: () => setupTmdb(input, todo) };
+    // a source's credentials, asked once per run: the Spotify app + login, the TMDb token, the Steam key
+    const credentials = { spotify: () => setupSpotify(input, todo), tmdb: () => setupTmdb(input, todo), steam: () => setupSteam(input, todo) };
     const askedFor = new Set();
     const ensureCredentials = async (source) => {
         if (credentials[source] && !askedFor.has(source)) {
@@ -665,7 +737,7 @@ const main = async () => {
             await credentials[source]();
         }
     };
-    const adders = { spotify: askSpotifyProject, local: askLocalProject, tmdb: askTmdbProject };
+    const adders = { spotify: askSpotifyProject, local: askLocalProject, tmdb: askTmdbProject, steam: askSteamProject };
 
     // a number from the list, or source/name
     const pickProject = (question) => {
@@ -766,7 +838,8 @@ const main = async () => {
         const project = getProject({ project: id });
         const current = readProjects();
         const title = project.source === "spotify" && project.playlistId ? await lookupPlaylistName(project.playlistId)
-            : project.source === "tmdb" && project.listId ? (await lookupList(project.listId))?.name : null;
+            : project.source === "tmdb" && project.listId ? (await lookupList(project.listId))?.name
+            : project.source === "steam" ? (await lookupSteam(project.steam))?.name : null;
         const name = await askProjectName(input, project.source, current, toKebab(title ?? ""), { replace: false });
         if (!name || name === project.name) {
             ok("Nothing renamed");
@@ -856,7 +929,9 @@ const main = async () => {
     console.log(`\n✅ All set! Next, for ${project.id}:`);
     console.log(`  ${pad(`npm run full${flags}`)} # fetch everything (up to maxItems)`);
     console.log(`  ${pad(`npm run collage${flags}`)} # draw a random collage, again whenever you like`);
-    console.log(`  ${pad(`npm run daily-new${flags}`)} # later: add one new item a day, with it in the middle`);
+    if (project.source !== "steam") {
+        console.log(`  ${pad(`npm run daily-new${flags}`)} # later: add one new item a day, with it in the middle`);
+    }
     if (!readEnv().GOOGLE_MEET_BLOB_PATH) {
         console.log(`\nOptional: use the collage as your Google Meet background - \`npm run setup:meet${flags}\` (once you have a collage)`);
     }
@@ -869,4 +944,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { parsePlaylistId, isClientId, isTmdbToken, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor };
+module.exports = { parsePlaylistId, isClientId, isTmdbToken, isSteamKey, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor };

@@ -1,11 +1,16 @@
 // npm run daily-new [-- -p <project> | -p mix]: the day-by-day reveal - fetches exactly one new item, draws the collage with it in
 // the middle (--latest) and sends it to Google Meet (skipped when that isn't set up). A script and not a && chain in
-// package.json, so -s/-p reach every step (npm only appends options to the last command), -p mix is picked once here. Other
-// options go to the collage.
+// package.json, so -s/-p reach every step (npm only appends options to the last command), -p mix is picked once here (never a
+// steam project: not implemented for Steam). Other options go to the collage.
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
 const { ROOT, getProject, parseProjectArgs, projectArgs } = require("./project");
+
+// sources without a day-by-day reveal: a Steam library has no "newest game" (no purchase dates in the api)
+const NOT_IMPLEMENTED = { steam: "Steam" };
+
+const notImplemented = (source) => NOT_IMPLEMENTED[source] && new Error(`Not implemented for ${NOT_IMPLEMENTED[source]}`);
 
 const steps = (project, rest) => [
     ["fetch.js", ...projectArgs(project), "--limit", "1"],
@@ -15,7 +20,13 @@ const steps = (project, rest) => [
 
 const main = () => {
     const { source, project: name, rest } = parseProjectArgs(process.argv.slice(2));
-    const project = getProject({ source, project: name }, ROOT, { mix: true });
+    if (notImplemented(source)) {
+        throw notImplemented(source);
+    }
+    const project = getProject({ source, project: name }, ROOT, { mix: true, skipSources: Object.keys(NOT_IMPLEMENTED) });
+    if (notImplemented(project.source)) {
+        throw notImplemented(project.source);
+    }
     for (const [script, ...args] of steps(project, rest)) {
         const result = spawnSync(process.execPath, [path.join(__dirname, script), ...args], { cwd: ROOT, stdio: "inherit" });
         if (result.status !== 0) {
@@ -34,4 +45,4 @@ if (require.main === module) {
     }
 }
 
-module.exports = { steps };
+module.exports = { steps, notImplemented };

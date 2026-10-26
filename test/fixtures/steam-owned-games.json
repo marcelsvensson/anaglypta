@@ -1,0 +1,11 @@
+{
+  "response": {
+    "game_count": 4,
+    "games": [
+      { "appid": 2358720, "name": "Black Myth: Wukong", "playtime_forever": 1830, "img_icon_url": "764ad8ff458f7020d63a3f7f0abf6ad8882c05df", "has_community_visible_stats": true, "rtime_last_played": 1760000000 },
+      { "appid": 620, "name": "Portal 2", "playtime_forever": 912, "img_icon_url": "25a5a16b2423bf7487ac5340b5b0948cef48c5f8", "has_community_visible_stats": true, "rtime_last_played": 1700000000 },
+      { "appid": 1230, "name": "Mare Nostrum", "playtime_forever": 0, "img_icon_url": "1e1f56340d2d98a66a9b357257be8e020fb6061f", "rtime_last_played": 0 },
+      { "appid": 90, "name": "Half-Life: Dedicated Server", "playtime_forever": 0, "img_icon_url": "", "rtime_last_played": 0 }
+    ]
+  }
+}

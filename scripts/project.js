@@ -29,6 +29,18 @@ const parseListId = (input) => {
     return match ? match[1] : null;
 };
 
+// "https://steamcommunity.com/profiles/<17 digits>" or "<17 digits>" -> { steamId }, "https://steamcommunity.com/id/<name>"
+// or "<name>" -> { vanity } (looked up with the api key), anything else -> null
+const parseSteamProfile = (input) => {
+    const text = String(input ?? "").trim();
+    const id = text.match(/profiles\/(\d{17})(?!\d)/) || text.match(/^(\d{17})$/);
+    if (id) {
+        return { steamId: id[1] };
+    }
+    const vanity = text.match(/steamcommunity\.com\/id\/([\w-]+)/) || text.match(/^([\w-]{2,32})$/);
+    return vanity ? { vanity: vanity[1] } : null;
+};
+
 // "Chill Vibes 🌊" -> "chill-vibes", "Blåbär & Ö" -> "blabar-o", a project name that works as a folder name
 const toKebab = (text) => String(text ?? "")
     .normalize("NFKD")
@@ -123,6 +135,9 @@ const resolveProject = (settings, projects, { source, project } = {}, root = ROO
     if (source === "tmdb") {
         resolved.listId = parseListId(merged.list);
     }
+    if (source === "steam") {
+        resolved.steam = parseSteamProfile(merged.profile);
+    }
     if (source === "local" && merged.path) {
         resolved.path = expandHome(merged.path);
     }
@@ -162,12 +177,13 @@ const pickMix = (candidates, state = {}, random = Math.random) => {
 // projects/.mix.json remembers this round's picks, so every project comes up before one comes back
 const mixStatePath = (root) => path.join(root, "projects", ".mix.json");
 
-// -p mix: the next project of the round that has items (one without would need fetching first), remembered in projects/.mix.json
-const pickMixProject = (settings, projects, source, root, random = Math.random) => {
+// -p mix: the next project of the round that has items (one without would need fetching first), remembered in projects/.mix.json.
+// skipSources: sources the command can't run (daily-new: steam)
+const pickMixProject = (settings, projects, source, root, { random = Math.random, skipSources = [] } = {}) => {
     if (source && !sourceNames(settings).includes(source)) {
         throw new Error(`Unknown source "${source}" - the sources are: ${sourceNames(settings).join(", ")}`);
     }
-    const candidates = mixCandidates(settings, projects, { source });
+    const candidates = mixCandidates(settings, projects, { source }).filter((id) => !skipSources.includes(splitId(id).source));
     const ready = candidates.filter((id) => readData(resolveProject(settings, projects, { project: id }, root)).items.length);
     const empty = candidates.filter((id) => !ready.includes(id));
     if (empty.length) {
@@ -184,11 +200,12 @@ const pickMixProject = (settings, projects, source, root, random = Math.random) 
 };
 
 // reads settings.json and projects.json, flags = { source, project }. mix: true lets -p mix pick a random project
-const getProject = (flags, root = ROOT, { mix = false } = {}) => {
+// (never one of skipSources)
+const getProject = (flags, root = ROOT, { mix = false, skipSources = [] } = {}) => {
     const settings = readSettings(root);
     const projects = readProjects(root);
     if (mix && flags.project === MIX) {
-        return pickMixProject(settings, projects, flags.source, root);
+        return pickMixProject(settings, projects, flags.source, root, { skipSources });
     }
     return resolveProject(settings, projects, flags, root);
 };
@@ -310,6 +327,7 @@ module.exports = {
     expandHome,
     parsePlaylistId,
     parseListId,
+    parseSteamProfile,
     toKebab,
     deepMerge,
     readSettings,

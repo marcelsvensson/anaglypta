@@ -8,5 +8,8 @@
   },
   "tmdb": {
     "series": { "list": "https://www.themoviedb.org/list/8512345" }
+  },
+  "steam": {
+    "games": { "profile": "https://steamcommunity.com/id/your-name" }
   }
 }

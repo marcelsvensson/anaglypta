@@ -4,13 +4,13 @@
 >
 > — [Wikipedia](https://en.wikipedia.org/wiki/Anaglypta)
 
-Turn a Spotify playlist, a TMDb list of movies and series or a folder of photos into a living wallpaper: a grid of images around a big centrepiece - changing over time. Anaglypta will help you setup your Google Meet background, and change it on a schedule. It's an icebreaker, a conversation piece, or just an excellent way to show off your taste in music, film (or cats).
+Turn a Spotify playlist, a TMDb list of movies and series, a Steam library or a folder of photos into a living wallpaper: a grid of images around a big centrepiece - changing over time. Anaglypta will help you setup your Google Meet background, and change it on a schedule. It's an icebreaker, a conversation piece, or just an excellent way to show off your taste in music, film (or cats).
 
 ![A living collage: tiles around a large centrepiece fade to new images one at a time, then the centrepiece does too](docs/images/living.gif)
 
 ## Quick start
 
-You need [Node.js](https://nodejs.org) 20+ and [Python](https://www.python.org) 3.12+. For Spotify, first [create a Spotify app](#create-a-spotify-app). For TMDb, first [get a TMDb token](#get-a-tmdb-token). A folder of photos needs nothing else.
+You need [Node.js](https://nodejs.org) 20+ and [Python](https://www.python.org) 3.12+. For Spotify, first [create a Spotify app](#create-a-spotify-app). For TMDb, first [get a TMDb token](#get-a-tmdb-token). For Steam, first [get a Steam Web API key](#get-a-steam-web-api-key). A folder of photos needs nothing else.
 
 ```sh
 git clone https://github.com/marcelsvensson/anaglypta.git
@@ -32,6 +32,7 @@ Every **source** can have several **projects**, each with its own folder in `pro
 | `spotify` | a playlist, one tile per album cover | a [Spotify app](#create-a-spotify-app) and Premium |
 | `local` | a folder of photos (the folder itself, not its subfolders) | nothing |
 | `tmdb` | a public [TMDb](https://www.themoviedb.org) list, one poster per movie or series | a free [TMDb token](#get-a-tmdb-token) |
+| `steam` | a Steam profile's games, one library capsule (2:3) per game | a free [Steam Web API key](#get-a-steam-web-api-key) |
 
 ## Commands
 
@@ -41,7 +42,7 @@ Every **source** can have several **projects**, each with its own folder in `pro
 | `npm run full` | Fetches everything new, up to `maxItems` (`-- --limit n` for at most n) |
 | `npm run collage` | Draws a new random collage from what's fetched (no network needed) |
 | `npm run video` | *Experimental:* `collage.mp4`, a living collage: 10 minutes where one tile crossfades to another image every 10 s and the centrepiece every minute (`-- --minutes 10 --every 10 --fade 1`; `--rewind` puts the tiles back in the last minute so it loops seamlessly; `--slideshow` for whole collages one after another). `npm run random-meet -- --video` makes one and puts it in your Meet background |
-| `npm run daily-new` | Fetches **one** new item, puts it in the middle, sends it to Google Meet: the day-by-day reveal |
+| `npm run daily-new` | Fetches **one** new item, puts it in the middle, sends it to Google Meet: the day-by-day reveal (not for Steam) |
 | `npm run random-meet` | A new random collage as your Google Meet background |
 | `npm run meet` | Sends the current collage to Google Meet (`-- --dry-run` to check first) |
 | `npm run setup:meet` | Sets up the Google Meet background, see [below](#google-meet-background) |
@@ -57,7 +58,7 @@ npm run collage -- --latest          # the newest item in the middle (--cover: a
 npm run random-meet -- -p mix        # a project from the mix
 ```
 
-`-p mix` cycles through your projects in a shuffled order, so each comes up once before any comes back. It works with `collage`, `random-meet`, `daily-new` and `meet`. Leave a project out with `"allowMix": false`, or add `-s local` to mix only one source.
+`-p mix` cycles through your projects in a shuffled order, so each comes up once before any comes back. It works with `collage`, `random-meet`, `daily-new` (which skips Steam projects) and `meet`. Leave a project out with `"allowMix": false`, or add `-s local` to mix only one source.
 
 ## Layouts
 
@@ -86,7 +87,8 @@ To keep a layout, set it for the project in `projects.json`: `"collage": { "layo
   "default": "spotify/album",
   "spotify": { "album": { "playlist": "https://open.spotify.com/playlist/..." } },
   "local": { "cats": { "path": "~/Pictures/cats", "aspect": "2:3", "collage": { "layout": "auto" }, "allowMix": false } },
-  "tmdb": { "series": { "list": "https://www.themoviedb.org/list/..." } }
+  "tmdb": { "series": { "list": "https://www.themoviedb.org/list/..." } },
+  "steam": { "games": { "profile": "https://steamcommunity.com/id/..." } }
 }
 ```
 
@@ -136,6 +138,14 @@ Anaglypta reads your playlist through your own (free) Spotify developer app. Spo
 
 `npm run setup` asks for it and for your list's link. The list must be **public**.
 
+## Get a Steam Web API key
+
+1. Log in at [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey). The account can't be [limited](https://help.steampowered.com/en/faqs/view/71D3-35C2-AD96-AA3A) (it has to have spent $5 on Steam).
+2. As the domain name, `127.0.0.1` is fine. Agree to the terms and register.
+3. Copy the key (32 characters) and keep it to yourself.
+
+`npm run setup` asks for it and for a profile link (`steamcommunity.com/id/...` or `/profiles/...`). The profile's **Game details** must be **public** (Edit Profile → Privacy Settings). One key reads any public profile, so a friend's library can be a project too.
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -154,6 +164,10 @@ This product uses the TMDB API but is not endorsed or certified by TMDB.
 <a href="https://www.themoviedb.org"><img src="https://www.themoviedb.org/assets/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg" alt="The Movie Database (TMDB)" width="120"></a>
 
 Posters and titles come from TMDb and belong to their rights holders. The generated images are for your own use: don't commit or redistribute them, and follow the [TMDb API terms](https://www.themoviedb.org/api-terms-of-use). TMDb allows caching for at most 6 months, and Anaglypta keeps to that by itself ([how](docs/reference.md#tmdbs-6-month-limit)).
+
+## Steam
+
+Game data comes from the [Steam Web API](https://steamcommunity.com/dev). Anaglypta isn't affiliated with or endorsed by Valve. The library art belongs to the games' publishers, and the generated images are for your own use: don't commit or redistribute them, and follow the [Steam Web API terms](https://steamcommunity.com/dev/apiterms). Anaglypta stores the profile's id and name, and the names and art of its games, only on your computer (`projects/steam/`).
 
 ## Spotify content
 

@@ -10,6 +10,7 @@ Created by `npm run setup` from [`.example.env`](../.example.env). Never commit 
 |---|---|---|
 | `CLIENT_ID` | Spotify | Your Spotify app's Client ID |
 | `TMDB_TOKEN` | TMDb | Your TMDb API Read Access Token |
+| `STEAM_API_KEY` | Steam | Your Steam Web API key (it reads any profile whose Game details are public) |
 | `CLIENT_SECRET` | optional | Only for Spotify apps created before 2026 (instead of `npm run auth`) |
 | `SPOTIFY_MARKET` | optional | Country code such as `SE`, for track availability |
 | `SPOTIFY_AUTH_PORT` | optional | Port for the Spotify login, default `8888` |
@@ -23,10 +24,10 @@ Created by `npm run setup` from [`.example.env`](../.example.env). Never commit 
 |---|---|
 | `default` | The default project when `projects.json` doesn't name one |
 | `maxItems` | The most items a project holds (`200`). At the limit, `full` and `daily-new` add nothing more |
-| `aspect` | The shape of the tiles: `1:1` (default), `2:3` (TMDb, posters), `3:2`, `16:9`, ... Images are cropped to it around the middle, never stretched |
-| `imageSize` | The long side of the copies in `images/` (`640`, TMDb `960`, big enough for the centrepiece). They're made again by themselves when this or `aspect` changes |
+| `aspect` | The shape of the tiles: `1:1` (default), `2:3` (TMDb and Steam, posters), `3:2`, `16:9`, ... Images are cropped to it around the middle, never stretched |
+| `imageSize` | The long side of the copies in `images/` (`640`, TMDb `960`, Steam `900`, big enough for the centrepiece). They're made again by themselves when this or `aspect` changes |
 | `allowMix` | Whether `-p mix` may pick the project (`true`) |
-| `collage.layout` | The grid: `COLSxROWS/CENTRE` like `13x9/5` (default), or `auto` (TMDb's default): the largest grid the project's images fill, widescreen (shape 1.6 and up) unless that grid would be much smaller, with the biggest centrepiece up to 40% of the cells. `npm run collage -- --grid` lists them all. See [Layouts](../README.md#layouts) |
+| `collage.layout` | The grid: `COLSxROWS/CENTRE` like `13x9/5` (default), or `auto` (TMDb's and Steam's default): the largest grid the project's images fill, widescreen (shape 1.6 and up) unless that grid would be much smaller, with the biggest centrepiece up to 40% of the cells. `npm run collage -- --grid` lists them all. See [Layouts](../README.md#layouts) |
 | `collage.canvasWidth` | About how wide the collage is, in pixels (`1412`). The tiles get their size from it |
 | `collage.gap` | Pixels between the tiles (`8`) |
 | `collage.scale` | How many times each tile is enlarged without smoothing, for a pixel look (`1`) |
@@ -40,11 +41,12 @@ When a project has more images than the layout has cells, `npm run collage` pick
 - **Spotify**: one item per album. Every album appears once: if the playlist has several songs from the same album, the first one added wins. `full` remembers how far into the playlist it got, and when songs are removed it looks through the playlist again from the start (albums you already have are skipped). Your playlist must be one you own or collaborate on.
 - **Local**: the image files directly in the folder (jpg, png, webp, gif, bmp, tiff, heic). Subfolders and hidden files are left alone. The project holds the newest `maxItems` images, by the file's date. New photos are added by the next `full`, pushing the oldest out. Deleted photos are dropped, and edited ones come back as new. A broken file shows up as a warning once and is skipped from then on.
 - **TMDb**: one poster per movie or series in a public list, in the list's order. The project follows the list: what you add shows up on the next `full` or `daily-new`, and what you remove is dropped. Entries without a poster are picked up once they have one.
+- **Steam**: one library capsule (the 600×900 portrait art, with the game's title) per game a profile owns, including free games it has played. Steam's API has no purchase dates, so the project is the first `maxItems` games by app id (roughly the order they came out on Steam), which keeps the pick stable. New games show up on the next `full`, and games that left the library are dropped. Games without library art on the store (some DLC, tools and old or delisted games) are skipped. `daily-new` isn't available for Steam: there's no "newest game" to reveal.
 
 ## How it works
 
 1. `npm run full` (and `daily-new`) asks the project's source for new items and adds them to `projects/<source>/<name>/items.json`, together with how far it has come.
-2. It then makes a copy of every new image in `images/`, cropped to the project's `aspect`. Spotify covers and TMDb posters are downloaded for this, and photos are turned upright. A failed download is tried again on the next run.
+2. It then makes a copy of every new image in `images/`, cropped to the project's `aspect`. Spotify covers, TMDb posters and Steam capsules are downloaded for this, and photos are turned upright. A failed download is tried again on the next run.
 3. `npm run collage` draws `collage.jpg` from `images/` with Python/Pillow. It works offline, which is good for a `random-meet` from cron on a laptop.
 
 `npm run video` writes `collage.mp4`, a **living collage**: it starts from a random collage, then every 10 s one tile crossfades (1 s) to an image that isn't on screen, and every 60 s the centrepiece does too. An image that leaves sits out 5 minutes before it can come back (sooner when the project has few spare images), and the next tile is never one of the last few that changed or their neighbours. A centrepiece isn't repeated within a video while there are others to choose from, and the video always ends on the centrepiece it started with. With `--rewind` the tiles go back too: towards the end (the last minute for the defaults) up to 9 at a time fade back to their first image, in the order they first changed, so Meet's loop is seamless. Options: `--minutes`, `--every`, `--centre-every`, `--fade` (0 for a cut), `--cooldown` (seconds), `--rewind`. A project with no images to spare (exactly as many as the layout needs) has nothing to change to. `--slideshow` makes whole random collages one after another instead (`--segments 20 --seconds 30`). Frames are padded to 1920×1080 on black and encoded as H.264 with [PyAV](https://pypi.org/project/av/): 10 fps for the crossfades, but an unchanged frame costs next to nothing, so 10 minutes of posters stay around 4 MB (the Meet background holds 20 MB). Making one takes about a minute.
@@ -98,6 +100,10 @@ There's one Meet background for all projects: it gets the collage of the project
 | `Port 8888 is busy` | Set `SPOTIFY_AUTH_PORT` in `.env` and add the matching Redirect URI to the app. |
 | `Missing TMDB_TOKEN` / TMDb `401` | Add the API Read Access Token (not the API Key) to `.env`, or run `npm run setup`. |
 | TMDb `404` on the list / `TMDb returned no list items` | The list has to be public, and the link or id in `projects.json` must be the list's. |
+| `Missing STEAM_API_KEY` / Steam `401` or `403` | Add your Steam Web API key to `.env`, or run `npm run setup`. |
+| `Steam returned no games - ... Game details have to be Public` | Steam answers a private library with nothing at all. Set the profile's Game details to Public (Edit Profile → Privacy Settings; Friends only isn't enough). |
+| `No Steam profile called ...` | The `/id/<name>` in `projects.json` doesn't exist. Copy the link from the profile page again. |
+| `Not implemented for Steam` | `daily-new` doesn't work on Steam projects. Use `random-meet` or `collage` instead. |
 | `Python packages missing` | Run `npm run setup:python`. |
 | `Nothing fetched for ... yet` | Run `npm run full` first (with the same `-p`). |
 | `Unknown project` | Check the name with `npm run setup` (it lists your projects), or add the project there. |

@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { resolveProject } = require("../scripts/project");
-const { parsePlaylistId, isClientId, isTmdbToken, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor } = require("../scripts/setup");
+const { parsePlaylistId, isClientId, isTmdbToken, isSteamKey, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor } = require("../scripts/setup");
 
 const ID = "37i9dQZF1DXcBWIGoYBM5M";
 
@@ -124,4 +124,11 @@ test("isTmdbToken accepts the Read Access Token, not the API key", () => {
     assert.ok(!isTmdbToken("0123456789abcdef0123456789abcdef"), "the API key");
     assert.ok(!isTmdbToken("eyJ.only-two"));
     assert.ok(!isTmdbToken(""));
+});
+
+test("isSteamKey accepts a 32-character hex key", () => {
+    assert.ok(isSteamKey(" 0123456789ABCDEF0123456789ABCDEF "));
+    assert.ok(!isSteamKey("0123456789ABCDEF"));
+    assert.ok(!isSteamKey("eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJ4In0.c2lnbmF0dXJl"));
+    assert.ok(!isSteamKey(""));
 });

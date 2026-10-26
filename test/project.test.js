@@ -63,7 +63,7 @@ test("pickMixProject skips projects without items and remembers its pick in proj
         }
         const picked = [];
         for (let i = 0; i < 4; i++) {
-            picked.push(pickMixProject(settings, projects, undefined, root, () => 0).id);
+            picked.push(pickMixProject(settings, projects, undefined, root, { random: () => 0 }).id);
         }
         // tmdb/series has no items, spotify/cats opts out, every one once per round
         assert.deepEqual(picked, ["local/cats", "local/dogs", "spotify/album", "local/cats"]);
@@ -71,6 +71,8 @@ test("pickMixProject skips projects without items and remembers its pick in proj
         assert.equal(pickMixProject(settings, projects, "spotify", root).id, "spotify/album");
         assert.throws(() => pickMixProject(settings, projects, "tmdb", root), /No tmdb projects in the mix/);
         assert.throws(() => pickMixProject(settings, projects, "instagram", root), /Unknown source/);
+        // daily-new leaves out sources it can't run
+        assert.equal(pickMixProject(settings, projects, undefined, root, { skipSources: ["local"] }).id, "spotify/album");
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }

@@ -38,6 +38,10 @@ const FETCHERS = {
         require("dotenv").config({ quiet: true });
         return require("./sources/tmdb").fetchTmdb(project, { ...options, tmdb: require("../api/tmdb") });
     },
+    steam: (project, options) => {
+        require("dotenv").config({ quiet: true });
+        return require("./sources/steam").fetchSteam(project, { ...options, steam: require("../api/steam") });
+    },
 };
 
 const main = async () => {
