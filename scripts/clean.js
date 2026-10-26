@@ -11,15 +11,18 @@ const { ROOT, getProject, parseProjectArgs } = require("./project");
 
 const filesIn = (dir, matches = () => true) => (fs.existsSync(dir) ? fs.readdirSync(dir).filter(matches).map((file) => path.join(dir, file)) : []);
 const notGitkeep = (file) => file !== ".gitkeep";
+// only the folders (projects/ also holds .mix.json, and Finder leaves .DS_Store files around)
+const dirsIn = (dir) => filesIn(dir).filter((file) => fs.statSync(file).isDirectory());
 
 // projects/<source>/<name>/images of every project on disk
-const imageDirs = (root = ROOT) => filesIn(path.join(root, "projects"), notGitkeep)
-    .flatMap((sourceDir) => filesIn(sourceDir))
+const imageDirs = (root = ROOT) => dirsIn(path.join(root, "projects"))
+    .flatMap((sourceDir) => dirsIn(sourceDir))
     .map((projectDir) => path.join(projectDir, "images"));
 
 const cleanTargets = (root = ROOT) => [
     path.join(root, "scripts", "__pycache__"),
-    path.join(root, "scripts", "sources", "__pycache__"),
+    // a source with python in it (local.py) gets one next to it
+    ...dirsIn(path.join(root, "lib", "sources")).map((sourceDir) => path.join(sourceDir, "__pycache__")),
     ...imageDirs(root),
     ...filesIn(path.join(root, "tmp-upload"), notGitkeep),
 ];

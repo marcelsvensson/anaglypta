@@ -160,15 +160,16 @@ test("clean removes the image caches and the padded Meet card, nothing else", ()
     const { cleanTargets } = require("../scripts/clean");
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
     try {
-        for (const dir of ["projects/local/cats/images", "projects/spotify/album/images", "tmp-upload"]) {
+        for (const dir of ["projects/local/cats/images", "projects/spotify/album/images", "tmp-upload", "lib/sources/local/__pycache__"]) {
             fs.mkdirSync(path.join(root, dir), { recursive: true });
         }
-        for (const file of ["projects/.gitkeep", "projects/local/cats/collage.jpg", "projects/local/cats/items.json", "tmp-upload/.gitkeep",
-            "tmp-upload/anaglypta.mp4"]) {
+        // .mix.json and .DS_Store are files next to the source folders, they must not be walked into
+        for (const file of ["projects/.gitkeep", "projects/.mix.json", "projects/.DS_Store", "projects/local/.DS_Store", "projects/local/cats/collage.jpg",
+            "projects/local/cats/items.json", "tmp-upload/.gitkeep", "tmp-upload/anaglypta.mp4", "lib/sources/local/index.js"]) {
             fs.writeFileSync(path.join(root, file), "");
         }
         const targets = cleanTargets(root).map((target) => path.relative(root, target)).filter((target) => fs.existsSync(path.join(root, target)));
-        assert.deepEqual(targets.sort(), ["projects/local/cats/images", "projects/spotify/album/images", "tmp-upload/anaglypta.mp4"]);
+        assert.deepEqual(targets.sort(), ["lib/sources/local/__pycache__", "projects/local/cats/images", "projects/spotify/album/images", "tmp-upload/anaglypta.mp4"]);
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }
