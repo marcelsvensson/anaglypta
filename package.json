@@ -1,6 +1,6 @@
 {
   "name": "anaglypta",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "commonjs",
   "scripts": {
@@ -23,15 +23,16 @@
   "keywords": [
     "spotify",
     "tmdb",
+    "steam",
     "collage",
     "background",
     "google meet"
   ],
   "author": "marcelsvensson",
   "license": "ISC",
-  "description": "generate a background collage from a spotify playlist or a folder of images",
+  "description": "generate a living background collage from the source of choice (spotify-playlist, tmdb-list, steam-library or a folder of images)",
   "engines": {
-    "node": ">=20"
+    "node": "^22.23.4 || ^24.22.1 || >=26.12.1"
   },
   "dependencies": {
     "dotenv": "^18.0.6"

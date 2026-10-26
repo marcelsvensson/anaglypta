@@ -10,7 +10,7 @@ Turn a Spotify playlist, a TMDb list of movies and series, a Steam library or a 
 
 ## Quick start
 
-You need [Node.js](https://nodejs.org) 20+ and [Python](https://www.python.org) 3.12+. For Spotify, first [create a Spotify app](#create-a-spotify-app). For TMDb, first [get a TMDb token](#get-a-tmdb-token). For Steam, first [get a Steam Web API key](#get-a-steam-web-api-key). A folder of photos needs nothing else.
+You need [Node.js](https://nodejs.org) 24.22.1+ (or 22.23.4+: older versions have known security issues) and [Python](https://www.python.org) 3.12+. For Spotify, first [create a Spotify app](#create-a-spotify-app). For TMDb, first [get a TMDb token](#get-a-tmdb-token). For Steam, first [get a Steam Web API key](#get-a-steam-web-api-key). A folder of photos needs nothing else.
 
 ```sh
 git clone https://github.com/marcelsvensson/anaglypta.git

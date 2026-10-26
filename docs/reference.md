@@ -92,6 +92,7 @@ There's one Meet background for all projects: it gets the collage of the project
 
 | Problem | Fix |
 |---|---|
+| `Node ... has known security issues` / `Node ... is no longer supported` / `npm error code EBADENGINE` | Anaglypta only runs on Node versions with the latest security fixes: 24.22.1 or newer (or 22.23.4+ on Node 22). Update from [nodejs.org](https://nodejs.org), or with asdf/nvm (`.tool-versions` and `.nvmrc` name the version). |
 | `Not logged in to Spotify` | Run `npm run auth`. |
 | `Spotify returned no tracks` / `403` on the playlist | You must own or collaborate on the playlist, and be logged in with `npm run auth`. |
 | `403` on everything | The app owner needs Spotify Premium, and other users must be added under **User Management** in the app. |

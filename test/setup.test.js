@@ -1,6 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
+const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
@@ -12,6 +13,7 @@ const { isClientId } = require("../lib/sources/spotify/setup");
 const { isTmdbToken } = require("../lib/sources/tmdb/setup");
 const { isSteamKey } = require("../lib/sources/steam/setup");
 const { parseFolderInput } = require("../lib/sources/local/setup");
+const { MIN_NODE, nodeProblem } = require("../lib/setup/python");
 
 const ID = "37i9dQZF1DXcBWIGoYBM5M";
 
@@ -137,4 +139,29 @@ test("isSteamKey accepts a 32-character hex key", () => {
     assert.ok(!isSteamKey("0123456789ABCDEF"));
     assert.ok(!isSteamKey("eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJ4In0.c2lnbmF0dXJl"));
     assert.ok(!isSteamKey(""));
+});
+
+test("nodeProblem accepts only patched versions of supported Node lines", () => {
+    for (const version of ["24.22.1", "24.23.0", "22.23.4", "22.24.0", "26.12.1", "27.0.0", "v24.22.1"]) {
+        assert.equal(nodeProblem(version), null, version);
+    }
+    assert.match(nodeProblem("24.21.0"), /Node 24.21.0 has known security issues - update to 24.22.1 or newer/);
+    assert.match(nodeProblem("24.22.0"), /update to 24.22.1/);
+    assert.match(nodeProblem("22.23.3"), /update to 22.23.4/);
+    assert.match(nodeProblem("26.11.9"), /update to 26.12.1/);
+    for (const version of ["20.19.0", "18.0.0", "23.11.0", "25.2.0"]) {
+        assert.match(nodeProblem(version), /no longer supported \(no security fixes\) - install 24.22.1 or newer/, version);
+    }
+});
+
+test("the Node minimums agree: setup, package.json engines, .tool-versions and .nvmrc", () => {
+    const root = path.join(__dirname, "..");
+    const engines = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).engines.node;
+    const lines = Object.keys(MIN_NODE).map(Number);
+    const expected = lines.map((major) => (major === Math.max(...lines) ? `>=${MIN_NODE[major]}` : `^${MIN_NODE[major]}`)).join(" || ");
+    assert.equal(engines, expected, "engines in package.json");
+    const toolVersions = fs.readFileSync(path.join(root, ".tool-versions"), "utf8").match(/^nodejs (\S+)$/m)[1];
+    assert.equal(nodeProblem(toolVersions), null, ".tool-versions pins a patched Node");
+    assert.equal(fs.readFileSync(path.join(root, ".nvmrc"), "utf8").trim(), toolVersions, ".nvmrc matches .tool-versions");
+    assert.match(fs.readFileSync(path.join(root, ".npmrc"), "utf8"), /^engine-strict=true$/m);
 });
