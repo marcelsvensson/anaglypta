@@ -26,7 +26,7 @@ Created by `npm run setup` from [`.example.env`](../.example.env). Never commit 
 | `aspect` | The shape of the tiles: `1:1` (default), `2:3` (TMDb, posters), `3:2`, `16:9`, ... Images are cropped to it around the middle, never stretched |
 | `imageSize` | The long side of the copies in `images/` (`640`, TMDb `960`, big enough for the centrepiece). They're made again by themselves when this or `aspect` changes |
 | `allowMix` | Whether `-p mix` may pick the project (`true`) |
-| `collage.layout` | The grid: `COLSxROWS/CENTRE` like `13x9/5` (default), or `auto` (TMDb's default). See [Layouts](../README.md#layouts) |
+| `collage.layout` | The grid: `COLSxROWS/CENTRE` like `13x9/5` (default), or `auto` (TMDb's default): the largest grid the project's images fill, widescreen (shape 1.6 and up) unless that grid would be much smaller, with the biggest centrepiece up to 40% of the cells. `npm run collage -- --grid` lists them all. See [Layouts](../README.md#layouts) |
 | `collage.canvasWidth` | About how wide the collage is, in pixels (`1412`). The tiles get their size from it |
 | `collage.gap` | Pixels between the tiles (`8`) |
 | `collage.scale` | How many times each tile is enlarged without smoothing, for a pixel look (`1`) |

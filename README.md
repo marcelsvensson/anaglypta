@@ -61,21 +61,21 @@ npm run random-meet -- -p mix        # a project from the mix
 
 ## Layouts
 
-A layout is *columns* × *rows* / *centrepiece*, counted in tiles. `auto` picks the largest layout your items can fill, so the grid grows with the project. Tiles are cropped to the project's shape, never stretched.
+A layout is *columns* × *rows* / *centrepiece*, counted in tiles. The centrepiece can be as tall as the grid: `13x5/5` has no row above or below it. `auto` picks the largest widescreen grid your items can fill, with the biggest centrepiece it has, so the grid grows with the project. Tiles are cropped to the project's shape, never stretched.
 
 | | |
 |---|---|
 | ![13 by 9 tiles around a 5 by 5 centrepiece](docs/images/default.jpg) | ![7 by 5 tiles around a 3 by 3 centrepiece](docs/images/small.jpg) |
 | `13x9/5`, the default (93 items) | `auto` with 30 items: `7x5/3` |
-| ![11 by 5 portrait tiles around a 3 by 3 centrepiece](docs/images/posters.jpg) | ![13 by 9 tiles, no centrepiece](docs/images/fill.jpg) |
-| `auto` with 2:3 posters (TMDb's default): `11x5/3` | `--fill`: no centrepiece |
+| ![13 by 5 portrait tiles around a 5 by 5 centrepiece as tall as the grid](docs/images/posters.jpg) | ![13 by 9 tiles, no centrepiece](docs/images/fill.jpg) |
+| `auto` with 2:3 posters (TMDb's default): `13x5/5` | `--fill`: no centrepiece |
 
 ```sh
 npm run collage -- --grid              # the layouts that fit the project, and how many items each needs
-npm run collage -- --layout 11x5/3     # try one
+npm run collage -- --layout 13x7/5     # try one
 ```
 
-To keep a layout, set it for the project in `projects.json`: `"collage": { "layout": "11x5/3" }`.
+To keep a layout, set it for the project in `projects.json`: `"collage": { "layout": "13x7/5" }`.
 
 ## Configuration
 

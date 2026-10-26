@@ -62,10 +62,18 @@ class LayoutsTest(unittest.TestCase):
                 self.assertTrue(1.2 <= layout["shape"] <= 1.9)
                 self.assertGreaterEqual(min(layout["tile"]), 90)
 
-    def test_auto_picks_the_largest_layout_the_items_fill(self):
-        self.assertEqual(auto_layout((2, 3), 47)["layout"], "11x5/3")
-        self.assertEqual(auto_layout((2, 3), 40)["layout"], "10x4/2", "37 posters, closer to 16:10 than 9x5/3")
-        self.assertEqual(auto_layout((2, 3), 5)["layout"], "7x3/1", "too few: the smallest one")
+    def test_big_centres_are_layouts_too(self):
+        self.assertIn("13x5/5", self.needed((2, 3)), "a centre as tall as the grid")
+        self.assertIn("13x7/5", self.needed((1, 1)))
+        self.assertEqual(self.needed((1, 1))["13x7/5"], 67)
+
+    def test_auto_picks_the_largest_widescreen_grid_with_the_biggest_centre(self):
+        self.assertEqual(auto_layout((2, 3), 60)["layout"], "13x5/5", "the same grid as 13x5/3, a bigger centre")
+        self.assertEqual(auto_layout((2, 3), 200)["layout"], "13x5/5", "widescreen over a bigger but tall grid")
+        self.assertEqual(auto_layout((1, 1), 67)["layout"], "13x7/5")
+        self.assertEqual(auto_layout((1, 1), 200)["layout"], "14x8/6", "not 14x8/8: at most 40% centre")
+        self.assertEqual(auto_layout((1, 1), 30)["layout"], "7x5/3", "a small project: a bigger grid over a tiny widescreen one")
+        self.assertEqual(auto_layout((2, 3), 5)["layout"], "7x3/3", "too few: the one that needs the fewest")
 
     def test_parse_layout(self):
         self.assertEqual(parse_layout("13x9/5"), (13, 9, 5))
@@ -78,7 +86,7 @@ class LayoutsTest(unittest.TestCase):
         grid = resolve({"layout": "11x5/3"}, (2, 3), 47)
         self.assertEqual((grid["col"], grid["row"], grid["width"], grid["height"]), (11, 5, 119, 178))
         self.assertEqual(grid["center"], {"col": 4, "row": 1, "size": 3})
-        self.assertEqual(resolve({"layout": "auto"}, (2, 3), 47)["layout"], "11x5/3")
+        self.assertEqual(resolve({"layout": "auto"}, (2, 3), 47)["layout"], "13x5/5")
 
     def test_settings_from_before_layouts_are_ignored(self):
         old = {"col": 4, "row": 3, "width": 10, "height": 10, "center": {"col": 1, "row": 1, "size": 1}}
@@ -90,7 +98,8 @@ class LayoutsTest(unittest.TestCase):
         table = grid_table((2, 3), 47)
         self.assertIn("✓ 11x5/3", table)
         self.assertIn("  13x5/3", table)
-        self.assertIn("auto picks 11x5/3", table)
+        self.assertIn("auto picks 13x5/5", table)
+        self.assertIn("13x5/5       41   100x150   1412x798   1.77   5/5 rows  <- auto", table)
 
 
 if __name__ == "__main__":
