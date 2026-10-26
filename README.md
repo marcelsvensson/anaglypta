@@ -4,9 +4,9 @@
 >
 > — [Wikipedia](https://en.wikipedia.org/wiki/Anaglypta)
 
-Turn a Spotify playlist, a TMDb list of movies and series or a folder of photos into wallpaper: a grid of images around a big centrepiece. Anaglypta can also make it your Google Meet background, and change it every day. It's an icebreaker, a conversation piece, or just an excellent way to show off your taste in music, film (or cats).
+Turn a Spotify playlist, a TMDb list of movies and series or a folder of photos into a living wallpaper: a grid of images around a big centrepiece - changing over time. Anaglypta will help you setup your Google Meet background, and change it on a schedule. It's an icebreaker, a conversation piece, or just an excellent way to show off your taste in music, film (or cats).
 
-![A collage: a grid of square tiles around a large centrepiece](docs/images/default.jpg)
+![A living collage: tiles around a large centrepiece fade to new images one at a time, then the centrepiece does too](docs/images/living.gif)
 
 ## Quick start
 

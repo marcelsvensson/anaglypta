@@ -154,16 +154,19 @@ test("daily-new passes the project to every step and other options to the collag
     assert.ok(all[1].includes("--fill") && all[1].includes("--latest"));
 });
 
-test("clean removes every project's image cache, nothing else in projects/", () => {
+test("clean removes the image caches and the padded Meet card, nothing else", () => {
     const { cleanTargets } = require("../scripts/clean");
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "anaglypta-test-"));
     try {
-        for (const dir of ["projects/local/cats/images", "projects/spotify/album/images"]) {
+        for (const dir of ["projects/local/cats/images", "projects/spotify/album/images", "tmp-upload"]) {
             fs.mkdirSync(path.join(root, dir), { recursive: true });
         }
-        fs.writeFileSync(path.join(root, "projects", ".gitkeep"), "");
+        for (const file of ["projects/.gitkeep", "projects/local/cats/collage.jpg", "projects/local/cats/items.json", "tmp-upload/.gitkeep",
+            "tmp-upload/anaglypta.mp4"]) {
+            fs.writeFileSync(path.join(root, file), "");
+        }
         const targets = cleanTargets(root).map((target) => path.relative(root, target)).filter((target) => fs.existsSync(path.join(root, target)));
-        assert.deepEqual(targets.sort(), ["projects/local/cats/images", "projects/spotify/album/images"]);
+        assert.deepEqual(targets.sort(), ["projects/local/cats/images", "projects/spotify/album/images", "tmp-upload/anaglypta.mp4"]);
     } finally {
         fs.rmSync(root, { recursive: true, force: true });
     }

@@ -14,8 +14,6 @@ from PIL import Image, ImageOps
 from common import add_project_args, canvas_size, cell_xy, ensure_image, load_project, load_tile, parse_aspect, read_items, warn
 from layout import grid_table, resolve
 
-# a small copy of the collage, saved next to it as collage_thumbnail.jpg (72 dpi), scaled to cover and cropped in the centre, never stretched
-THUMBNAIL_SIZE = (97, 68)
 
 
 def free_cells(col, row, center, skip):
@@ -143,10 +141,6 @@ def main():
     canvas.save(output, quality=95)
     centre = "" if args.fill else " + centrepiece"
     print(f"Saved {project['folder']}/collage.jpg ({drawn}/{len(picked['tiles'])} images{centre}, {len(cells)} cells, layout {grid['layout']})")
-
-    thumbnail = project["dir"] / "collage_thumbnail.jpg"
-    ImageOps.fit(canvas, THUMBNAIL_SIZE, Image.Resampling.LANCZOS).save(thumbnail, quality=95, dpi=(72, 72))
-    print(f"Saved {project['folder']}/collage_thumbnail.jpg ({THUMBNAIL_SIZE[0]}x{THUMBNAIL_SIZE[1]})")
 
 
 if __name__ == "__main__":

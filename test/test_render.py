@@ -75,12 +75,10 @@ class RenderTest(unittest.TestCase):
         x, y = common.cell_xy(*cells[2], 10, 10, 2)
         self.assertColour(self.colour_at(image, x + 5, y + 5), (0, 0, 0))
 
-    def test_collage_also_saves_a_thumbnail(self):
+    def test_collage_saves_no_thumbnail(self):
         with redirect_stdout(io.StringIO()):
             collage.main()
-        with Image.open(self.dir / "collage_thumbnail.jpg") as thumbnail:
-            self.assertEqual(thumbnail.size, (97, 68))
-            self.assertEqual(tuple(round(d) for d in thumbnail.info["dpi"]), (72, 72))
+        self.assertFalse((self.dir / "collage_thumbnail.jpg").exists(), "Meet makes its own")
 
     def collage_with(self, *flags):
         """Runs the collage with flags, returns (centre colour, colours of the filled grid cells)."""

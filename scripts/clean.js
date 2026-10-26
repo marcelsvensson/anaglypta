@@ -1,4 +1,5 @@
-// npm run clean: removes everything that can be rebuilt (every project's square image copies in images/)
+// npm run clean: removes everything that can be rebuilt (every project's square image copies in images/, and the padded
+// Meet card in tmp-upload/)
 // npm run reset [-- -p <project>]: removes one project's folder (items.json, images, collages) for a fresh start -
 // asks first, --yes skips that. The project stays in projects.json, the next fetch starts from scratch.
 // never touches .env, .spotify-token.json, projects.json, .venv or node_modules
@@ -20,6 +21,7 @@ const cleanTargets = (root = ROOT) => [
     path.join(root, "scripts", "__pycache__"),
     path.join(root, "scripts", "sources", "__pycache__"),
     ...imageDirs(root),
+    ...filesIn(path.join(root, "tmp-upload"), notGitkeep),
 ];
 
 const main = async () => {

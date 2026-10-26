@@ -45,13 +45,13 @@ When a project has more images than the layout has cells, `npm run collage` pick
 
 1. `npm run full` (and `daily-new`) asks the project's source for new items and adds them to `projects/<source>/<name>/items.json`, together with how far it has come.
 2. It then makes a copy of every new image in `images/`, cropped to the project's `aspect`. Spotify covers and TMDb posters are downloaded for this, and photos are turned upright. A failed download is tried again on the next run.
-3. `npm run collage` draws `collage.jpg` (and the 97×68 `collage_thumbnail.jpg`) from `images/` with Python/Pillow. It works offline, which is good for a `random-meet` from cron on a laptop.
+3. `npm run collage` draws `collage.jpg` from `images/` with Python/Pillow. It works offline, which is good for a `random-meet` from cron on a laptop.
 
 `npm run video` writes `collage.mp4`, a **living collage**: it starts from a random collage, then every 10 s one tile crossfades (1 s) to an image that isn't on screen, and every 60 s the centrepiece does too. An image that leaves sits out 5 minutes before it can come back (sooner when the project has few spare images), and the next tile is never one of the last few that changed or their neighbours. Options: `--minutes`, `--every`, `--centre-every`, `--fade` (0 for a cut), `--cooldown` (seconds). `--slideshow` makes whole random collages one after another instead (`--segments 20 --seconds 30`). Frames are padded to 1920×1080 on black and encoded as H.264 with [PyAV](https://pypi.org/project/av/): 10 fps for the crossfades, but an unchanged frame costs next to nothing, so 10 minutes of posters stay around 4 MB (the Meet background holds 20 MB). Making one takes about a minute.
 
 Node reads the settings, picks the project and hands it to the Python scripts, which only do the image work (Pillow, which also reads iPhone HEIC photos, and PyAV for the video).
 
-Everything generated (`projects/`) and `projects.json` are ignored by git. `npm run clean` removes what can be rebuilt (every project's `images/`), and `npm run reset` takes one project back to a fresh start.
+Everything generated (`projects/`) and `projects.json` are ignored by git. `npm run clean` removes what can be rebuilt (every project's `images/`, and the padded Meet card in `tmp-upload/`), and `npm run reset` takes one project back to a fresh start.
 
 ## TMDb's 6-month limit
 
@@ -118,4 +118,4 @@ Not errors: `No new albums in the playlist` (everything is already in), `Skipped
 
 `npm test` runs the Node tests (`node:test`) and the Python tests (`unittest`) in a couple of seconds. They need no network, no Spotify account and no `.env`: responses come from `test/fixtures/`, and the image tests draw solid-colour images in a temp folder.
 
-The README's example images are drawn by the real layout code from made-up colour tiles: run `node scripts/python.js docs/make-images.py` to make them again after changing the layouts.
+The README's example images, and the living collage GIF at the top, are drawn by the real layout code from made-up colour tiles: run `node scripts/python.js docs/make-images.py` to make them again after changing the layouts or the drawing.
