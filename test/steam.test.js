@@ -4,9 +4,10 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { normalizeOwnedGames, normalizeStoreItems, getCapsules, request } = require("../api/steam");
-const { syncGames, fetchSteam } = require("../scripts/sources/steam");
-const { parseSteamProfile, readData, writeData } = require("../scripts/project");
+const { normalizeOwnedGames, normalizeStoreItems, getCapsules, request } = require("../lib/sources/steam/api");
+const { syncGames, fetchSteam } = require("../lib/sources/steam/fetch");
+const { readData, writeData } = require("../scripts/project");
+const { parseSteamProfile } = require("../lib/sources/steam");
 const { notImplemented } = require("../scripts/daily-new");
 const ownedFixture = require("./fixtures/steam-owned-games.json");
 const storeFixture = require("./fixtures/steam-store-items.json");

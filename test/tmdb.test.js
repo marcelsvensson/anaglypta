@@ -4,9 +4,10 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-const { normalizeListPage, getList, posterUrl } = require("../api/tmdb");
-const { syncItems, fetchTmdb } = require("../scripts/sources/tmdb");
-const { parseListId, readData, writeData } = require("../scripts/project");
+const { normalizeListPage, getList, posterUrl } = require("../lib/sources/tmdb/api");
+const { syncItems, fetchTmdb } = require("../lib/sources/tmdb/fetch");
+const { readData, writeData } = require("../scripts/project");
+const { parseListId } = require("../lib/sources/tmdb");
 const fixture = require("./fixtures/tmdb-list.json");
 
 test("normalizeListPage reads series and movies alike", () => {

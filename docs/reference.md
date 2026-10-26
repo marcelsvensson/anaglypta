@@ -124,4 +124,15 @@ Not errors: `No new albums in the playlist` (everything is already in), `Skipped
 
 `npm test` runs the Node tests (`node:test`) and the Python tests (`unittest`) in a couple of seconds. They need no network, no Spotify account and no `.env`: responses come from `test/fixtures/`, and the image tests draw solid-colour images in a temp folder.
 
+### Adding a source
+
+Every source is a folder in [`lib/sources/`](../lib/sources) with an adapter (`index.js`) that the rest of Anaglypta asks what it needs: how to read a project's entry in `projects.json`, how to fetch, what `npm run setup` should ask, and whether `daily-new` works for it. Nothing outside the folder names a source. To add one:
+
+1. Make `lib/sources/<name>/` with an `index.js` (copy TMDb's or Steam's), and next to it `api.js` (the client), `fetch.js` (turns the API's answer into items) and `setup.js` (its keys and its project questions).
+2. Add `sources.<name>` to `settings.json`, with the source's defaults (`aspect`, `imageSize`, `collage.layout`, and `maxCacheDays` if its terms limit caching).
+3. Add its keys to `.example.env`, a row and a "Get a ... key" section to the README (plus any notice its terms ask for), and its details here.
+4. Add `test/<name>.test.js` with fixtures, using made-up accounts. `test/sources.test.js` checks the adapter and that `settings.json` and `lib/sources/` agree.
+
+Removing a source is the reverse: delete the folder and its `settings.json` entry.
+
 The README's example images, and the living collage GIF at the top, are drawn by the real layout code from made-up colour tiles: run `node scripts/python.js docs/make-images.py` to make them again after changing the layouts or the drawing.

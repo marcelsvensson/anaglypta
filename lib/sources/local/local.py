@@ -18,7 +18,7 @@ from pathlib import Path
 
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts"))
 
 from common import HEIF, Progress, add_project_args, ensure_image, image_path, load_project, read_data, warn, write_data  # noqa: E402
 

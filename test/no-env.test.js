@@ -1,4 +1,5 @@
-// safety net: importing the project's modules must never load .env - only the entry points (main functions) may
+// safety net: importing the project's modules must never load .env - only the entry points (main functions) may.
+// Every .js under lib/ and scripts/ is checked, so a new source is covered by itself
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
@@ -9,11 +10,18 @@ const exampleKeys = fs.readFileSync(path.join(ROOT, ".example.env"), "utf8")
     .split("\n")
     .map((line) => line.match(/^([A-Z_]+)=/)?.[1])
     .filter(Boolean);
+// entry points that load .env at the top on purpose
+const ENTRY_POINTS = ["lib/sources/spotify/auth.js"];
+
+const modules = ["lib", "scripts"]
+    .flatMap((dir) => fs.readdirSync(path.join(ROOT, dir), { recursive: true }).map((file) => path.join(dir, file)))
+    .filter((file) => file.endsWith(".js") && !ENTRY_POINTS.includes(file.split(path.sep).join("/")));
 
 test("importing modules doesn't load .env", () => {
+    assert.ok(modules.length > 20, "found the modules");
     const before = exampleKeys.filter((key) => key in process.env);
 
-    for (const module of ["api/spotify", "api/tmdb", "api/steam", "scripts/sources/tmdb", "scripts/sources/steam", "scripts/project", "scripts/sources/spotify", "scripts/fetch", "scripts/daily-new", "scripts/clean", "scripts/setup", "scripts/python", "scripts/meet", "scripts/collage", "scripts/video"]) {
+    for (const module of modules) {
         require(path.join(ROOT, module));
     }
 

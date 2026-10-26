@@ -3,10 +3,10 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { toItem, knownFrom, filterNewItems, collectNewAlbums, freeSlots, fetchSpotify } = require("../scripts/sources/spotify");
+const { toItem, knownFrom, filterNewItems, collectNewAlbums, freeSlots, fetchSpotify } = require("../lib/sources/spotify/fetch");
 const { parseLimit } = require("../scripts/fetch");
 const { readData, writeData } = require("../scripts/project");
-const { normalizePage } = require("../api/spotify");
+const { normalizePage } = require("../lib/sources/spotify/api");
 const fixture = require("./fixtures/playlist-items.json");
 
 const entry = (overrides = {}) => ({

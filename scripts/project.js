@@ -7,6 +7,8 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
+const { SOURCES } = require("../lib/sources");
+
 const ROOT = path.join(__dirname, "..");
 const NAME = /^[a-z0-9][a-z0-9-]*$/;
 // -p mix: a random project (allowMix isn't false) instead of a named one, a reserved name
@@ -14,32 +16,6 @@ const MIX = "mix";
 const MIX_COMMANDS = "collage, video, random-meet, daily-new and meet";
 
 const expandHome = (file) => (file === "~" || file.startsWith("~/") ? path.join(os.homedir(), file.slice(1)) : file);
-
-// "https://open.spotify.com/playlist/<id>?si=..", "spotify:playlist:<id>" or "<id>" -> "<id>", anything else -> null
-const parsePlaylistId = (input) => {
-    const text = String(input ?? "").trim();
-    const match = text.match(/playlist[/:]([A-Za-z0-9]{22})(?![A-Za-z0-9])/) || text.match(/^([A-Za-z0-9]{22})$/);
-    return match ? match[1] : null;
-};
-
-// "https://www.themoviedb.org/list/8512345-my-series?..." or "8512345" -> "8512345", anything else -> null
-const parseListId = (input) => {
-    const text = String(input ?? "").trim();
-    const match = text.match(/list\/(\d+)/) || text.match(/^(\d+)$/);
-    return match ? match[1] : null;
-};
-
-// "https://steamcommunity.com/profiles/<17 digits>" or "<17 digits>" -> { steamId }, "https://steamcommunity.com/id/<name>"
-// or "<name>" -> { vanity } (looked up with the api key), anything else -> null
-const parseSteamProfile = (input) => {
-    const text = String(input ?? "").trim();
-    const id = text.match(/profiles\/(\d{17})(?!\d)/) || text.match(/^(\d{17})$/);
-    if (id) {
-        return { steamId: id[1] };
-    }
-    const vanity = text.match(/steamcommunity\.com\/id\/([\w-]+)/) || text.match(/^([\w-]{2,32})$/);
-    return vanity ? { vanity: vanity[1] } : null;
-};
 
 // "Chill Vibes 🌊" -> "chill-vibes", "Blåbär & Ö" -> "blabar-o", a project name that works as a folder name
 const toKebab = (text) => String(text ?? "")
@@ -129,18 +105,8 @@ const resolveProject = (settings, projects, { source, project } = {}, root = ROO
     const merged = deepMerge(settings.defaults, settings.sources[source], entry);
     const folder = `projects/${source}/${project}`;
     const resolved = { ...merged, source, name: project, id: `${source}/${project}`, folder, dir: path.join(root, folder) };
-    if (source === "spotify") {
-        resolved.playlistId = parsePlaylistId(merged.playlist);
-    }
-    if (source === "tmdb") {
-        resolved.listId = parseListId(merged.list);
-    }
-    if (source === "steam") {
-        resolved.steam = parseSteamProfile(merged.profile);
-    }
-    if (source === "local" && merged.path) {
-        resolved.path = expandHome(merged.path);
-    }
+    // the source adds its own fields (playlistId, listId, path, ...)
+    Object.assign(resolved, SOURCES[source]?.resolve?.(merged, { expandHome }));
     return resolved;
 };
 
@@ -325,9 +291,6 @@ module.exports = {
     NAME,
     MIX,
     expandHome,
-    parsePlaylistId,
-    parseListId,
-    parseSteamProfile,
     toKebab,
     deepMerge,
     readSettings,

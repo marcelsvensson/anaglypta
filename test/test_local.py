@@ -10,7 +10,7 @@ from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
 sys.path.insert(0, str(SCRIPTS))
-sys.path.insert(0, str(SCRIPTS / "sources"))
+sys.path.insert(0, str(SCRIPTS.parent / "lib" / "sources" / "local"))
 
 from PIL import Image  # noqa: E402
 

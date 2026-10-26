@@ -1,7 +1,7 @@
 const { test } = require("node:test");
 const assert = require("node:assert/strict");
 
-const { normalizePage } = require("../api/spotify");
+const { normalizePage } = require("../lib/sources/spotify/api");
 const itemsShape = require("./fixtures/playlist-items.json");
 const tracksShape = require("./fixtures/playlist-tracks.json");
 

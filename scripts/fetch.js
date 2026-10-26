@@ -1,9 +1,10 @@
 // npm run full [-- -p <project>] [--limit n]: fetches new items for a project from its source into
 // projects/<source>/<name>/items.json, then makes the square copies that are missing (cache.py), so the collage works
 // offline. --limit n: the most new items one run adds (daily-new uses 1), no --limit = all of them, up to maxItems.
-// A new source = a fetcher in scripts/sources/ plus a line in FETCHERS.
+// The project's source fetches (its adapter in lib/sources/<source>/).
 const { getProject, parseProjectArgs, expireCache } = require("./project");
 const { runPython } = require("./python");
+const { getSource } = require("../lib/sources");
 
 // --limit <n> -> n, no --limit -> Infinity
 const parseLimit = (argv) => {
@@ -25,25 +26,6 @@ const python = (script, project, args) => {
     }
 };
 
-// a python fetcher, it takes the same --limit
-const pythonFetcher = (script) => (project, { limit }) => python(script, project, limit === Infinity ? [] : ["--limit", String(limit)]);
-
-const FETCHERS = {
-    spotify: (project, options) => {
-        require("dotenv").config({ quiet: true });
-        return require("./sources/spotify").fetchSpotify(project, { ...options, spotify: require("../api/spotify") });
-    },
-    local: pythonFetcher("scripts/sources/local.py"),
-    tmdb: (project, options) => {
-        require("dotenv").config({ quiet: true });
-        return require("./sources/tmdb").fetchTmdb(project, { ...options, tmdb: require("../api/tmdb") });
-    },
-    steam: (project, options) => {
-        require("dotenv").config({ quiet: true });
-        return require("./sources/steam").fetchSteam(project, { ...options, steam: require("../api/steam") });
-    },
-};
-
 const main = async () => {
     const { source, project: name, rest } = parseProjectArgs(process.argv.slice(2));
     const limit = parseLimit(rest);
@@ -53,11 +35,7 @@ const main = async () => {
     }
 
     const project = getProject({ source, project: name });
-    const fetcher = FETCHERS[project.source];
-    if (!fetcher) {
-        throw new Error(`Can't fetch from ${project.source} yet`);
-    }
-    await fetcher(project, { limit });
+    await getSource(project.source).fetch(project, { limit });
     // what's past the source's cache limit goes first (quietly: the fetch just renewed what it could), cache.py downloads it again
     expireCache(project);
     python("scripts/cache.py", project, []);
@@ -70,4 +48,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { parseLimit, FETCHERS };
+module.exports = { parseLimit };

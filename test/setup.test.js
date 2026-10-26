@@ -5,7 +5,13 @@ const os = require("node:os");
 const path = require("node:path");
 
 const { resolveProject } = require("../scripts/project");
-const { parsePlaylistId, isClientId, isTmdbToken, isSteamKey, parseEnv, setEnvValue, parseFolderInput, setDefault, addProject, removeProject, renameProject, cronLinesFor } = require("../scripts/setup");
+const { parseEnv, setEnvValue } = require("../scripts/setup/ui");
+const { setDefault, addProject, removeProject, renameProject, cronLinesFor } = require("../scripts/setup/projects");
+const { parsePlaylistId } = require("../lib/sources/spotify");
+const { isClientId } = require("../lib/sources/spotify/setup");
+const { isTmdbToken } = require("../lib/sources/tmdb/setup");
+const { isSteamKey } = require("../lib/sources/steam/setup");
+const { parseFolderInput } = require("../lib/sources/local/setup");
 
 const ID = "37i9dQZF1DXcBWIGoYBM5M";
 
