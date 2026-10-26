@@ -1,5 +1,6 @@
 """Builds projects/<source>/<name>/collage.mp4, a video background: a living collage by default (10 minutes, one tile
-crossfades to another image every 10 s, the centrepiece every 60 s, see rotation.py). --slideshow: random collages, each
+crossfades to another image every 10 s, the centrepiece every 60 s, see rotation.py; it ends on the first centrepiece, and
+with --rewind on the first collage, so the loop is seamless). --slideshow: random collages, each
 shown for a while (20 x 30 s). --still: collage.jpg as collage_still.mp4, a one-frame video (the Meet background is a
 video, meet.js puts either in).
 
@@ -87,7 +88,7 @@ def living(project, items, grid, cells, args, rng=random):
     fade = min(args.fade, args.every)
     changes = rotate({cell: item["id"] for cell, item in picked["tiles"]}, picked["centre"] and picked["centre"]["id"],
                      list(by_id), steps, rng, centre_every=max(1, round(args.centre_every / args.every)),
-                     cooldown=max(1, round(args.cooldown / args.every)))
+                     cooldown=max(1, round(args.cooldown / args.every)), rewind=args.rewind)
     progress = Progress(steps, "changes drawn")
 
     def apply(base, step_changes):
@@ -137,6 +138,8 @@ def main():
     parser.add_argument("--centre-every", type=float, default=60, help="living collage: seconds between centrepiece changes (default 60)")
     parser.add_argument("--fade", type=float, default=1, help="living collage: seconds of crossfade, 0 for a cut (default 1)")
     parser.add_argument("--cooldown", type=float, default=300, help="living collage: seconds before an image can come back (default 300)")
+    parser.add_argument("--rewind", action="store_true",
+                        help="living collage: end where it started - the changed tiles go back at the end, up to 9 at a time, so the loop is seamless")
     parser.add_argument("--slideshow", action="store_true", help="random collages one after another instead")
     parser.add_argument("--segments", type=int, default=20, help="slideshow: how many collages (default 20)")
     parser.add_argument("--seconds", type=float, default=30, help="slideshow: how long each is shown (default 30)")

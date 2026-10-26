@@ -84,6 +84,17 @@ class VideoMainTest(unittest.TestCase):
             self.assertLess(difference(frames[0], frames[14]), 30)
             self.assertGreater(difference(frames[0], frames[59]), 100)
 
+    def test_rewind_ends_on_the_first_frame(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = self.project_with_items(Path(tmp) / "a", count=20)
+            argv = ["video", "--minutes", "0.2", "--every", "1", "--fade", "0.2", "--rewind"]  # 12 steps of 1 s
+            with mock.patch.object(video, "load_project", lambda _json: project), mock.patch.object(sys, "argv", argv), \
+                    redirect_stdout(io.StringIO()):
+                video.main()
+            with av.open(str(project["dir"] / "collage.mp4")) as container:
+                frames = [frame.to_image() for frame in container.decode(video=0)]
+            self.assertLess(max(channel[1] for channel in ImageChops.difference(frames[0], frames[-1]).getextrema()), 40)
+
     def test_main_writes_the_project_video(self):
         with tempfile.TemporaryDirectory() as tmp:
             folder = Path(tmp) / "projects" / "local" / "a"

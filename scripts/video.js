@@ -1,6 +1,8 @@
-// npm run video [-- -p <project> | -p mix] [--segments 20] [--seconds 30] [--cover | --latest | --fill] [--layout X]: an mp4
-// background of random collages, each shown for a while (scripts/video.py, the options go to it). Experimental: upload
-// projects/<source>/<name>/collage.mp4 in Google Meet by hand. Removes what's past the source's cache limit first (TMDb).
+// npm run video [-- -p <project> | -p mix] [--minutes 10] [--every 10] [--fade 1] [--rewind] [--cover | --latest | --fill] [--layout X]:
+// collage.mp4, a living collage (one tile crossfades to another image every 10 s, the centrepiece every 60 s; --rewind ends
+// where it started, for a seamless loop), or --slideshow [--segments 20] [--seconds 30]. scripts/video.py does it, the options
+// go to it. `npm run random-meet -- --video` makes one and puts it in the Meet background. Removes what's past the source's
+// cache limit first (TMDb).
 const { ROOT, getProject, parseProjectArgs, expireCache, reportExpired } = require("./project");
 const { runPython } = require("./python");
 
